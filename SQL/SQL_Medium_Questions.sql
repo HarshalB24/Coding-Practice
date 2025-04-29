@@ -238,3 +238,170 @@ from users cross join phones
 where savings >= cost*0.2 and monthly_salary*0.2 >=cost*0.8/6
 group by user_name
 order by user_name
+
+/*
+===============================================
+SQL Problem:    Average Order Value
+===============================================
+
+## 📝 Problem Statement
+
+Write an SQL query to determine **the transaction date with the lowest average order value (AOV)** among all dates recorded in the `transactions` table.
+
+Display:
+- The `transaction_date`
+- The corresponding **AOV** (rounded to 2 decimal places)
+- The **difference** between the AOV for that date and the **highest AOV** for any day in the dataset (rounded to 2 decimal places)
+
+---
+
+## 📚 Table: `transactions`
+
+| COLUMN_NAME         | DATA_TYPE     |
+|---------------------|---------------|
+| order_id            | int           |
+| transaction_amount  | decimal(5,2)  |
+| transaction_date    | date          |
+| user_id             | int           |
+
+---
+
+## 🎯 Requirements
+- Find the **date** with the **lowest AOV**.
+- Find the **highest AOV** across all dates.
+- Show both the **lowest AOV** and the **difference** between the **lowest AOV** and the **highest AOV**.
+- Round all decimal outputs to **2 decimal places**.
+
+---
+*/
+
+---Solution:
+
+with minimum_value  as (
+select transaction_date,round(avg(transaction_amount),2) as minimum_aov from transactions 
+group by transaction_date
+order by round(avg(transaction_amount),2) asc
+limit 1),
+maximum_value as (
+select transaction_date,round(avg(transaction_amount),2) as highest_aov from transactions 
+group by transaction_date
+order by round(avg(transaction_amount),2) desc
+limit 1)
+select min_value.transaction_date,min_value.minimum_aov,(highest_aov-minimum_aov) as diff from minimum_value min_value
+cross join
+maximum_value maximum_val
+
+----Alternate :
+with cte as (
+select transaction_date, avg(transaction_amount) as aov
+ from transactions
+ group by transaction_date
+)
+, cte1 as (
+select *
+,row_number() over(order by aov) as rn
+,max(aov) over() as highest_aov
+from cte 
+)
+select transaction_date,round(aov,2) as aov,round(highest_aov-aov,2) as diff_from_highest_aov
+from cte1
+where rn=1;
+
+
+
+/*
+===============================================
+SQL Problem: Employee vs Manager Salary and Joining Date Challenge
+
+===============================================
+
+## 📝 Problem Statement
+
+You are given a table containing **employee details**.
+
+Write an SQL query to find **details of employees** who:
+- Have a **salary greater** than their **manager's salary**, and
+- **Joined the company after** their **manager**.
+
+### Output Columns:
+- `emp_name`
+- `salary`
+- `joining_date`
+- `manager_salary`
+- `manager_joining_date`
+
+Sort the output by **employee name** in ascending order.
+
+> 📢 **Note**:  
+> The `manager_id` in the `employee` table refers to the `emp_id` from the same table (self-reference).
+
+---
+
+## 📚 Table: `employee`
+
+| COLUMN_NAME  | DATA_TYPE    |
+|--------------|--------------|
+| emp_id       | int          |
+| emp_name     | varchar(10)  |
+| joining_date | date         |
+| salary       | int          |
+| manager_id   | int          |
+
+
+## 📤 Expected Output
+
+| emp_name | salary | joining_date | manager_salary | manager_joining_date |
+|----------|--------|--------------|----------------|----------------------|
+| Charlie  | 80000  | 2022-05-20    | 70000          | 2022-01-10           |
+
+
+*/
+Solution :
+select e.emp_name,e.salary,e.joining_date,m.salary,m.joining_date from employee e 
+inner join employee m on m.emp_id=e.manager_id
+where e.salary > m.salary and e.joining_date > m.joining_date
+order by e.emp_name
+
+
+/*
+===============================================
+SQL Problem: Cancellation vs Return
+
+===============================================
+An order is considered cancelled if it is cancelled before delivery (i.e., cancel_date is not null, and delivery_date is null). If an order is cancelled, no delivery will take place.
+An order is considered a return if it is cancelled after it has already been delivered (i.e., cancel_date is not null, and cancel_date > delivery_date).
+
+Metrics to Calculate:
+Cancel Rate = (Number of orders cancelled / Number of orders placed but not returned) * 100
+Return Rate = (Number of orders returned / Number of orders placed but not cancelled) * 100
+
+Write an SQL query to calculate the cancellation rate and return rate for each month (based on the order_date).Round the rates to 2 decimal places. Sort the output by year and month in increasing order.
+ 
+
+Table: orders 
++---------------+-----------+
+| COLUMN_NAME   | DATA_TYPE |
++---------------+-----------+
+| order_id      | int       |
+| order_date    | date      |
+| customer_id   | int       |
+| delivery_date | date      |
+| cancel_date   | date      |
++---------------+-----------+
+*/
+
+with cte as (
+  select * ,
+case when delivery_Date is not null and cancel_date is not null then 1 else 0 end as return_flag,
+case when delivery_date is null and cancel_date is not null then 1 else 0 end as cancel_flag
+from orders
+)
+select year(order_Date) as order_year,month(order_date) as order_month
+,round(sum(cancel_flag)*100 / (count(*) - sum(return_flag)),2) as cancel_Rate
+,round(sum(return_flag)*100 / (count(*) - sum(cancel_flag)),2) as return_rate
+from cte
+group by 
+year(order_Date) ,month(order_date) 
+
+
+
