@@ -404,4 +404,282 @@ group by
 year(order_Date) ,month(order_date) 
 
 
+/*
+===============================================
+SQL Problem: Return Orders Customer Feedback
+===============================================
+Namastekart, an e-commerce company, has observed a notable surge in return orders recently. They suspect that a specific group of customers may be responsible for a significant portion of these returns. To address this issue, their initial goal is to identify customers who have returned more than 50% of their orders. This way, they can proactively reach out to these customers to gather feedback.
 
+Write an SQL to find list of customers along with their return percent (Round to 2 decimal places), display the output in ascending order of customer name.
+
+Table: orders (primary key : order_id)
++---------------+-------------+
+| COLUMN_NAME   | DATA_TYPE   |
++---------------+-------------+
+| customer_name | varchar(10) |
+| order_date    | date        |
+| order_id      | int         |
+| sales         | int         |
++---------------+-------------+
+
+Table: returns (primary key : order_id)
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| order_id    | int       |
+| return_date | date      |
++-------------+-----------+
+*/
+Solution:
+
+select customer_name,round(count(r.order_id)*100/count(*),2) as return_count from orders o
+left join returns r on 
+o.order_id=r.order_id
+group by customer_name
+having count(r.order_id) > count(*) * 0.5
+order by customer_name
+
+/*
+===============================================
+SQL Problem: LinkedIn Top Voice
+===============================================
+LinkedIn is a professional social networking app. They want to give top voice badge to their best creators to encourage them to create more quality content. A creator qualifies for the badge if he/she satisfies following criteria.
+
+ 
+
+1- Creator should have more than 50k followers.
+2- Creator should have more than 100k impressions on the posts that they published in the month of Dec-2023.
+3- Creator should have published atleast 3 posts in Dec-2023.
+
+ 
+
+Write a SQL to get the list of top voice creators name along with no of posts and impressions by them in the month of Dec-2023.
+
+ 
+
+Table: creators(primary key : creator_id)
++--------------+-------------+
+| COLUMN_NAME  | DATA_TYPE   |
++--------------+-------------+
+| creator_id   | int         |
+| creator_name | varchar(20) |
+| followers    | int         |
++--------------+-------------+
+Table: posts(primary key : post_id)
++--------------+------------+
+| COLUMN_NAME  | DATA_TYPE  |
++--------------+------------+
+| creator_id   | int        |
+| post_id      | varchar(3) |
+| publish_date | date       |
+| impressions  | int        |
++--------------+------------+
+
+*/
+sOLUTION :
+select c.creator_name,count(post_id) as no_posts,sum(impressions) as total_impressions
+from creators c
+inner join posts p on 
+c.creator_id=p.creator_id
+where month(publish_date)=12 and followers > 50000
+group by c.creator_name
+having no_posts >=3 and total_impressions > 100000
+
+
+
+/*
+===============================================
+SQL Problem: Premium Customers
+===============================================
+An e-commerce company want to start special reward program for their premium customers.  The customers who have placed a greater number of orders than the average number of orders placed by customers are considered as premium customers.
+
+Write an SQL to find the list of premium customers along with the number of orders placed by each of them, display the results in highest to lowest no of orders.
+
+Table: orders (primary key : order_id)
++---------------+-------------+
+| COLUMN_NAME   | DATA_TYPE   |
++---------------+-------------+
+| order_id      | int         |
+| order_date    | date        |
+| customer_name | varchar(20) |
+| sales         | int         |
++---------------+-------------+
+*/
+
+Solution:
+select customer_name,count(*) as total_orders
+from orders
+group by customer_name
+having count(*) > (select count(*)/count(distinct customer_name) as avg_orders from orders)
+order by total_orders desc
+
+/*
+===============================================
+SQL Problem: AirBnB Top Listings
+===============================================
+Suppose you are a data analyst working for a travel company that offers vacation rentals similar to Airbnb. Your company wants to identify the top hosts with the highest average ratings for their listings. This information will be used to recognize exceptional hosts and potentially offer them incentives to continue providing outstanding service.
+
+ 
+
+Your task is to write an SQL query to find the top 2 hosts with the highest average ratings for their listings. However, you should only consider hosts who have at least 2 listings, as hosts with fewer listings may not be representative.
+
+Display output in descending order of average ratings and round the average ratings to 2 decimal places.
+
+ 
+
+Table: listings
++----------------+---------------+
+| COLUMN_NAME    | DATA_TYPE     |
++----------------+---------------+
+| host_id        | int           |
+| listing_id     | int           |
+| minimum_nights | int           |
+| neighborhood   | varchar(20)   |
+| price          | decimal(10,2) |
+| room_type      | varchar(20)   |
++----------------+---------------+
+*/
+
+Solution:
+with cte as (
+select host_id,listing_id , count(*) over (partition by host_id) as no_of_listing from listings  --we do partition by to keep both listing id and count of listing id
+)  -- if we do this without partition by then the anser will be wrong
+select cte.host_id,no_of_listing,round(avg(r.rating),2) as avg_ratings from cte 
+inner join reviews r on 
+r.listing_id=cte.listing_id
+where no_of_listing >=2
+group by cte.host_id,cte.no_of_listing
+order by avg_ratings desc
+limit 2
+
+
+/*
+===============================================
+SQL Problem: Best Employee Award
+===============================================
+TCS wants to award employees based on number of projects completed by each individual each month.  Write an SQL to find best employee for each month along with number of projects completed by him/her in that month, display the output in descending order of number of completed projects.
+
+Table: projects
++-------------------------+-------------+
+| COLUMN_NAME             | DATA_TYPE   |
++-------------------------+-------------+
+| project_id              | int         |
+| employee_name           | varchar(10) |
+| project_completion_date | date        |
++-------------------------+-------------+
+*/
+
+Solution:
+
+with cte as (select employee_name,date_format(project_completion_Date,'%Y%m') AS yearmonth ,count(*) as no_of_projects from projects 
+group by employee_name,date_format(project_completion_Date,'%Y%m') 
+)
+select employee_name,no_of_projects,yearmonth from (
+select *
+, row_number () over (partition by yearmonth order by no_of_projects desc ) as rn from cte ) A
+where rn=1
+order by no_of_projects desc
+
+====
+Alternate :
+with cte_projects_completed as (
+select employee_name, DATE_FORMAT(project_completion_date,'%Y%m') as year_month_combo,
+count(project_completion_date) as no_of_completed_projects
+from projects
+where project_completion_date is not null
+group by employee_name,DATE_FORMAT(project_completion_date,'%Y%m') )
+select employee_name,no_of_completed_projects,year_month_combo as yearmonth from (
+select employee_name,year_month_combo,no_of_completed_projects, rank() over(partition by year_month_combo order by no_of_completed_projects desc) as rn
+from cte_projects_completed) a
+where rn=1
+ORDER BY no_of_completed_projects DESC;
+
+
+/*
+===============================================
+SQL Problem: Workaholics Employees -- HARD 
+===============================================
+Write a query to find workaholics employees.  Workaholics employees are those who satisfy at least one of the given criterions:
+
+ 
+
+1- Worked for more than 8 hours a day for at least 3 days in a week. 
+2- worked for more than 10 hours a day for at least 2 days in a week. 
+You are given the login and logout timings of all the employees for a given week. Write a SQL to find all the workaholic employees along with the criterion that they are satisfying (1,2 or both), display it in the order of increasing employee id
+
+ 
+
+Table: employees
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| emp_id      | int       |
+| login       | datetime  |
+| logout      | datetime  |
++-------------+-----------+
+*/
+
+Solution :
+with cte as (
+select emp_id,count(*) as days_8
+, count(case when datediff(minute,login,logout)/60.0 > 10 then 1 end )as days_10 
+from employees
+where datediff(minute,login,logout)/60.0 > 8
+group by emp_id
+ )
+ select emp_id,
+ case when days_8 >=3 and days_10 >=2 then 'both'
+ when days_10>=2 then '2'
+ else '1' end as criteria
+ from cte 
+
+ALTERNATE :
+=====================
+
+with logged_hours as (
+select *,TIMESTAMPDIFF(second, login, logout)/3600.0,case when TIMESTAMPDIFF(second, login, logout) / 3600.0  > 10 then '10+'
+when TIMESTAMPDIFF(second, login, logout) / 3600.0  > 8 then '8+'
+else '8-' end as time_window
+from employees)
+ , time_window as (
+ select emp_id , count(*) as days_8
+, sum(case when time_window='10+' then 1 else 0 end ) as days_10
+ from logged_hours
+where time_window in ('10+','8+')
+ group by emp_id)
+ select emp_id, case when days_8 >=3 and days_10>=2 then 'both'
+ when days_8 >=3 then '1'
+ else '2' end as criterian
+ from time_window
+  where days_8>=3 or days_10>=2 
+ORDER BY emp_id ASC;
+
+
+/*
+===============================================
+SQL Problem: Business Expansion
+===============================================
+Amazon is expanding their pharmacy business to new cities every year. You are given a table of business operations where you have information about cities where Amazon is doing operations along with the business date information.
+
+Write a SQL to find year wise number of new cities added to the business, display the output in increasing order of year.
+
+ 
+
+Table: business_operations
++---------------+-----------+
+| COLUMN_NAME   | DATA_TYPE |
++---------------+-----------+
+| business_date | date      |
+| city_id       | int       |
++---------------+-----------+
+
+*/
+Solution :
+with cte as (
+    select city_id,year(min(business_date)) as yr
+from business_operations
+group by city_id
+)
+select yr,count(*) from cte
+group by yr
+order by yr
