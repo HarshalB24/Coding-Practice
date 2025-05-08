@@ -683,3 +683,408 @@ group by city_id
 select yr,count(*) from cte
 group by yr
 order by yr
+
+/*
+
+===============================================
+SQL Problem: 18 - Hero Products
+===============================================
+Flipkart an ecommerce company wants to find out its top most selling product by quantity in each category. 
+In case of a tie when quantities sold are same for more than 1 product, then we need to give preference to the product with higher sales value.
+Display category and product in output with category in ascending order.
+
+Table: orders
++-------------+-------------+
+| COLUMN_NAME | DATA_TYPE   |
++-------------+-------------+
+| category    | varchar(10) |
+| order_id    | int         |
+| product_id  | varchar(20) |
+| quantity    | int         |
+| unit_price  | int         |
++-------------+-------------+
+
+Hints :
+1- total sales will be unit_price*quantity
+2- aggregate the sales at category and product level and then rank them based on quantity and total sales
+
+Expected Output
++-----------+---------------+
+| category  | product_id    |
++-----------+---------------+
+| Footwear  | floaters-3421 |
+| Furniture | Table-3421    |
++-----------+---------------+
+*/
+
+
+
+/*===============================================
+SQL Problem: Account Balance 
+===============================================
+
+You are given a list of users and their opening account balance along with the transactions done by them. Write a SQL to calculate their account balance at the end of all the transactions. Please note that users can do transactions among themselves as well, display the output in ascending order of the final balance.
+
+ 
+Table: users
++-----------------+-------------+
+| COLUMN_NAME     | DATA_TYPE   |
++-----------------+-------------+
+| user_id         | int         |
+| username        | varchar(10) |
+| opening_balance | int         |
++-----------------+-------------+
+
+Table: transactions
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| id          | int       |
+| from_userid | int       |
+| to_userid   | int       |
+| amount      | int       |
++-------------+---------
+
+
+Hints
+
+1- flatter the data using union for from user id and to user id in same column
+2- negate the amount for "from user id" select
+
+Expected Output
++----------+---------------+
+| username | final_balance |
++----------+---------------+
+| Ankit    |          2000 |
+| Amit     |          2800 |
+| Agam     |          7500 |
+| Rahul    |         10200 |
++----------+---------------+
+/*
+
+===============================================
+SQL Problem: 18 - boAt Lifestyle Marketing
+===============================================
+
+boAt Lifestyle is focusing on influencer marketing to build and scale their brand. They want to partner with power creators for their upcoming campaigns. 
+The creators should satisfy below conditions to qualify:
+
+1- They should have 100k+ followers on at least 2 social media platforms and
+2- They should have at least 50k+ views on their latest YouTube video.
+Write an SQL to get creator id and name satisfying above conditions.
+
+Table: creators
++-------------+-------------+
+| COLUMN_NAME | DATA_TYPE   |
++-------------+-------------+
+| id          | int         |
+| name        | varchar(10) |
+| followers   | int         |
+| platform    | varchar(10) |
++-------------+-------------+
+Table: youtube_videos
++--------------+-----------+
+| COLUMN_NAME  | DATA_TYPE |
++--------------+-----------+
+| id           | int       |
+| creator_id   | int       |
+| publish_date | date      |
+| views        | int       |
++--------------+-----------+
+
+Hint:
+1- in first cte filter creators who have 100k followers on at least 2 platforms
+2- then find latest video for all of them using row number
+3- combine the above 2 ctes
+
+
++------+-------+
+| id   | name  |
++------+-------+
+|  102 | Dhruv |
+|  104 | Neha  |
+|  105 | Amit  |
++------+-------+
+
+
+===============================================
+SQL Problem: 18 - Dynamic Pricing
+===============================================
+
+You are given a products table where a new row is inserted every time the price of a product changes. Additionally, there is a transaction table containing details such as order_date and product_id for each order.
+Write an SQL query to calculate the total sales value for each product, considering the cost of the product at the time of the order date, display the output in ascending order of the product_id.
+
+Table: products
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| product_id  | int       |
+| price       | int       |
+| price_date  | date      |
++-------------+-----------+
+Table: orders 
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| order_id    | int       |
+| order_date  | date      |
+| product_id  | int       |
++-------------+-----------+
+
+
+Hints
+1- use lag function to get date range for each product and price 
+2- do a range join using between on order date and price range
+
+Expected Output
++------------+-------------+
+| product_id | total_sales |
++------------+-------------+
+|        100 |         510 |
+|        101 |        4700 |
++------------+-------------+
+/*
+
+===============================================
+SQL Problem: 18 - Airbnb Business
+===============================================
+
+You are planning to list a property on Airbnb. To maximize profits, you need to analyze the Airbnb data for the month of January 2023 to determine the best room type for each location. The best room type is based on the maximum average occupancy during the given month.
+Write an SQL query to find the best room type for each location based on the average occupancy days. Order the results in descending order of average occupancy days, rounded to 2 decimal places.
+
+ 
+Table: listings
++----------------+---------------+
+| COLUMN_NAME    | DATA_TYPE     |
++----------------+---------------+
+| listing_id     | int           |
+| host_id        | int           |
+| location       | varchar(20)   |
+| room_type      | varchar(20)   |
+| price          | decimal(10,2) |
+| minimum_nights | int           |
++----------------+---------------+
+Table: bookings
++---------------+-----------+
+| COLUMN_NAME   | DATA_TYPE |
++---------------+-----------+
+| booking_id    | int       |
+| checkin_date  | date      |
+| checkout_date | date      |
+| listing_id    | int       |
++---------------+-----------+
+
+
+Hints
+1- first find total number of book days for each listing
+2- then find the average book days at location level 
+
+Expected Output
++----------+-----------------+---------------+
+| location | room_type       | avg_book_days |
++----------+-----------------+---------------+
+| Midtown  | Private room    |          7.00 |
+| Downtown | Entire home/apt |          6.33 |
++----------+-----------------+---------------+
+
+
+===============================================
+SQL Problem: Spotify Popular Tracks
+===============================================
+
+Suppose you are a data analyst working for Spotify (a music streaming service company) . Your company is interested in analyzing user engagement with playlists and wants to identify the most popular tracks among all the playlists.
+Write an SQL query to find the top 2 most popular tracks based on number of playlists they are part of. 
+Your query should return the top 2 track ID along with total number of playlist they are part of , sorted by the same and  track id in descending order , Please consider only those playlists which were played by at least 2 distinct users.
+
+Table: playlists
++---------------+--------------+
+| COLUMN_NAME   | DATA_TYPE    |
++---------------+--------------+
+| playlist_id   | int          |
+| playlist_name | varchar(15) |
++---------------+--------------+
+Table: playlist_tracks
++-------------+-----------+
+| COLUMN_NAME | DATA_TYPE |
++-------------+-----------+
+| playlist_id | int       |
+| track_id    | int       |
++-------------+-----------+
+Table: playlist_plays
++-------------+------------+
+| COLUMN_NAME | DATA_TYPE  |
++-------------+------------+
+| playlist_id | int        |
+| user_id     | varchar(2) |
++-------------+------------
+
+Hints
+1- create a cte which filters playlist which are played at least by 2 users
+2- join the cte and other 2 tables together
+
+Expected Output
++----------+----------------+
+| track_id | no_of_playlist |
++----------+----------------+
+|      104 |              4 |
+|      101 |              3 |
++----------+----------------+
+/*
+
+/*
+===============================================
+SQL Problem: 40 – Uber Driver Ratings
+===============================================
+
+Question
+Your Submissions
+Solution
+Discussion
+Medium - 20 Points
+Suppose you are a data analyst working for ride-sharing platform Uber. Uber is interested in analyzing the performance of drivers based on their ratings and wants to categorize them into different performance tiers. 
+
+Write an SQL query to categorize drivers equally into three performance tiers (Top, Middle, and Bottom) based on their average ratings. Drivers with the highest average ratings should be placed in the top tier, drivers with ratings below the top tier but above the bottom tier should be placed in the middle tier, and drivers with the lowest average ratings should be placed in the bottom tier. Sort the output in decreasing order of average rating.
+
+ 
+
+Table : driver_ratings
++-------------+--------------+
+| COLUMN_NAME | DATA_TYPE    |
++-------------+--------------+
+| driver_id   | int          |
+| avg_rating  | decimal(3,2) |
++-------------+--------------+
+
+1- use ntile function
+documentation: https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html#function_ntile
+
++-----------+------------+------------------+
+| driver_id | avg_rating | performance_tier |
++-----------+------------+------------------+
+|         7 |       4.90 | Top              |
+|         1 |       4.80 | Top              |
+|         5 |       4.70 | Top              |
+|        12 |       4.60 | Top              |
+|         2 |       4.50 | Middle           |
+|         9 |       4.40 | Middle           |
+|         4 |       4.20 | Middle           |
+|        11 |       4.10 | Middle           |
+|         3 |       3.90 | Bottom           |
+|         8 |       3.80 | Bottom           |
+|         6 |       3.60 | Bottom           |
+|        10 |       3.50 | Bottom           |
++-----------+------------+------------------+
+
+/*
+
+
+/*
+===============================================
+SQL Problem:Excess/insufficient Inventory
+===============================================
+
+Suppose you are a data analyst working for Flipkart. Your task is to identify excess and insufficient inventory at various Flipkart warehouses in terms of no of units and cost.  
+Excess inventory is when inventory levels are greater than inventory targets else its insufficient inventory.
+Write an SQL to derive excess/insufficient Inventory volume and value in cost for each location as well as at overall company level, display the results in ascending order of location id.
+
+ 
+
+Table: inventory
++------------------+-----------+
+| COLUMN_NAME      | DATA_TYPE |
++------------------+-----------+
+| inventory_level  | int       |
+| inventory_target | int       |
+| location_id      | int       |
+| product_id       | int       |
++------------------+-----------+
+Table: products
++-------------+--------------+
+| COLUMN_NAME | DATA_TYPE    |
++-------------+--------------+
+| product_id  | int          |
+| unit_cost   | decimal(5,2) |
++-------------+--------------+
+
+Hints
+1- first calculate excess/insufficient  at location level
+2- then union and aggregate above output to get at overall level
+
+Expected Output
++-------------+-------------------------+---------------------------+
+| location_id | excess_insufficient_qty | excess_insufficient_value |
++-------------+-------------------------+---------------------------+
+| 1           |                      25 |                   1347.50 |
+| 2           |                     -25 |                  -1420.00 |
+| 3           |                      20 |                   1180.00 |
+| 4           |                     -12 |                   -600.00 |
+| Overall     |                       8 |                    507.50 |
++-------------+-------------------------+---------------------------+
+/*
+
+/*
+===============================================
+SQL Problem: Zomato Membership
+===============================================
+
+Zomato is planning to offer a premium membership to customers who have placed multiple orders in a single day.
+Your task is to write a SQL to find those customers who have placed multiple orders in a single day at least once , 
+total order value generate by those customers and order value generated only by those orders, display the results in ascending order of total order value.
+
+ 
+
+Table: orders (primary key : order_id)
++---------------+-------------+
+| COLUMN_NAME   | DATA_TYPE   |
++---------------+-------------+
+| customer_name | varchar(20) |
+| order_date    | datetime    |
+| order_id      | int         |
+| order_value   | int         |
++---------------+-------------+
+
+Hint:
+1- first find customer and order date combination where customer placed multiple orders in a day
+2- use above cte as filter for customers as well as well as  for join 
+
+Expected Output
++---------------+-------------------+-------------+
+| customer_name | total_order_value | order_value |
++---------------+-------------------+-------------+
+| Mudit         |               780 |         550 |
+| Rahul         |              1300 |        1150 |
++---------------+-------------------+-------------+
+*/
+
+
+/*
+===============================================
+SQL Problem: Employees Inside Office (Part 1)
+===============================================
+
+A company record its employee's movement In and Out of office in a table. Please note below points about the data:
+1- First entry for each employee is “in”
+2- Every “in” is succeeded by an “out”
+3- Employee can work across days
+Write a SQL to find the number of employees inside the Office at “2019-04-01 19:05:00".
+
+
+Table: employee_record
++-------------+------------+
+| COLUMN_NAME | DATA_TYPE  |
++-------------+------------+
+| emp_id      | int        |
+| action      | varchar(3) |
+| created_at  | datetime   |
++-------------+------------+
+
+1- use lead to get the out time for each in
+2- keep only in entries now. 
+
+Expected Output
++------------------+
+| no_of_emp_inside |
++------------------+
+|                3 |
++------------------+
+/*
