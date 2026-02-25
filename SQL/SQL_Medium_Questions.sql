@@ -1088,3 +1088,135 @@ Expected Output
 |                3 |
 +------------------+
 /*
+
+------------------------------------------------- DA Interview Question--------------
+1. Products
+product_id  product_name  category        price
+1        Laptop        Electronics        1000.00
+2        Phone         Electronics        800.00
+3        Chair          Furniture         150.00
+4        Desk           Furniture         300.00
+ 
+2. Sales
+sale_id product_id  sale_date  quantity
+101        1        2023-01-10        5
+102        2        2023-01-15        3
+103        3        2023-02-20        10
+104        4        2023-02-25        7
+105        1        2023-03-05        2
+106        3        2023-03-15        8
+107        2        2023-03-20        4
+108        4        2023-03-25        6
+ 
+Calculate the total revenue generated for each product category. Include the category and total_revenue. 
+--> total revenue = price * quantity
+with cte as (
+select p.category,sum(p.price * s.quantity) as total_rev
+from products p
+left join sales s on p.product_id=s.product_id  -- here using left join means all categories with products will appear even if they dont have any sales
+group by category
+)
+select category,total_rev
+from cte
+
+# better to use inner join and without cte
+select p.category,coaelsce(sum(p.price*s.quantity)) as total_rev
+from products p
+join sales s on p.product_id=s.product_id
+group by category
+
+Top-Selling Products
+Identify the top 3 products by total quantity sold. Include the product_name, category, and total_quantity_sold.
+
+=========> 
+
+select product_name ,category sum(quantity) as total_quantity
+from products p
+left join sales s on p.product_id=s.product_id
+group by product_name,category
+order by total_quantity desc
+limit 3
+
+
+================================
+ 
+Table Name: customer_sales
+Customer_Name | Customer_ID | Item_ID | Transaction_Date
+-------------|-------------|---------|------------------
+Alice        | CUST-A182   | 101    | 2021-01-03
+Bob          | CUST-A183   | 102    | 2021-01-03
+Charlie      | CUST-C304   | 103    | 2021-01-07
+David        | CUST-E576   | 104    | 2021-01-15
+Eva          | CUST-G7H6   | 105    | 2021-01-21
+Alice        | CUST-A182   | 101    | 2021-01-25
+Bob          | CUST-A183   | 103    | 2021-02-05
+Charlie      | CUST-C304   | 102    | 2021-02-10
+Alice        | CUST-A182   | 105    | 2021-02-14
+David        | CUST-E576   | 101    | 2021-02-20
+Eva          | CUST-G7H6   | 104    | 2021-02-28
+Alice        | CUST-A182   | 101    | 2021-03-05
+Bob          | CUST-A183   | 102    | 2021-03-12
+Charlie      | CUST-C304   | 103    | 2021-03-18
+Frank        | CUST-F890   | 106    | 2021-03-22
+Alice        | CUST-A182   | 102    | 2021-04-08
+Bob          | CUST-A183   | 101    | 2021-04-15
+ 
+Question 1: Most Frequently Purchased Item per Customer
+Problem Statement: Identify the most frequently purchased item by each customer 
+across all transactions. If there's a tie (multiple items with the same highest frequency), 
+return all item.
+
+with cte as (
+select customer_id , item_id , count(*) as count_item
+from customer_sales
+group by customer_id,item_id
+) 
+select customer_id , dense_rank () over (partition by customer_id order by count_item desc) as rn
+from cte
+where rn=1  -- here this will not work bcz rn is being used in same select where its being defined
+
+correct query -- 
+with cte as (
+select customer_id,item_id,count(*) as item_count
+from customer_sales
+group by customer_id,item_id
+),
+ranked as (
+select customer_id,item_id , dense_rank() over (partition by customer_id order by item_count desc) as rn
+from cte 
+)
+select customer_id,item_count,item_id
+from ranked
+where rn=1
+
+
+===>
+
+Question 2: New vs. Repeat Customer Classification by Month
+Problem Statement: Classify customers each month into two categories:
+New Customers: Customers making their first-ever purchase in that specific month
+Repeat Customers: Customers who have already made purchases in any previous month(s)
+
+--- 1. first purchase per customer
+with first_purchase as (
+select customer_id,min(cast(transaction_Date as Date)) as first_purchase
+from customer_sales
+group by customer_id),
+customer_month as (
+select cs.customer_id,
+datetrunc('month',cast(cs.transaction_date as Date)) as txn_month
+from customer_sales cs
+group by customer_id,datetrunc('month',cast(cs.transaction_date as Date))
+,
+classified as (
+select cm.customer_id,
+cm.txn_month,
+case when date_trunc('month',cast(cs.transaction_date as Date)=cm.txn_month) then 'New'
+else 'Repeat' end as customer_type
+from customer_month cm
+join first_puchase fp
+on cm.customer_id=fp.customer_id)
+select txn_month,customer_id,count(distinct customer_id) as customer_count
+from classified
+group by txn_month,customer_id
+order by txn_month,customer_id
