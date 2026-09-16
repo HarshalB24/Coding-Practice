@@ -1865,26 +1865,330 @@ Output:
 +-------------+---------+---------------+-------------+
 
 soln --
-select employee_id , name , count(e.reports_to) as report_count , round(avg(age),2) as average_age
-from employees e 
-join employees m 
-on e.employee_id=m.reports_to
-group by e.employee_id , e.name
-having reports_count>=1
+SELECT 
+    m.employee_id,
+    m.name,
+    COUNT(e.employee_id) AS reports_count,
+    ROUND(AVG(e.age)) AS average_age
+FROM employees e
+JOIN employees m
+    ON e.reports_to = m.employee_id
+GROUP BY m.employee_id, m.name
+ORDER BY m.employee_id;
 
 
 ------
-select employee_id,department_id
-from employee
-where employee_id in (
-    select employee_id from employee group by employee_id having count(*)=1 
-) or primary_flag='Y';
+Table: Logs
 
--- alternate solution :
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| id          | int     |
+| num         | varchar |
++-------------+---------+
+In SQL, id is the primary key for this table.
+id is an autoincrement column starting from 1.
+ 
+
+Find all numbers that appear at least three times consecutively.
+
+Return the result table in any order.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Logs table:
++----+-----+
+| id | num |
++----+-----+
+| 1  | 1   |
+| 2  | 1   |
+| 3  | 1   |
+| 4  | 2   |
+| 5  | 1   |
+| 6  | 2   |
+| 7  | 2   |
++----+-----+
+Output: 
++-----------------+
+| ConsecutiveNums |
++-----------------+
+| 1               |
++-----------------+
+Explanation: 1 is the only number that appears consecutively for at least three times.
+
+Soln : 
+1.we use only lead to find the next 2 number and check if they are same
+with cte as (
+    select num , lead(num,1) over () as num1,
+    lead(num,2) over () as num2
+    from logs
+)
+select distinct num as ConsecutiveNums
+from cte
+where num=num1 and num1=num2
+
+alternative ----
+use both lead and lag and check if prev and next both are same
+with cte as (
+    select num , lag(num,1) over (order by id) as prev_num,
+    lead(num,1) over (order by id) as next_num
+    from logs
+)
+select distinct num as ConsecutiveNums
+from cte 
+where num=prev_num and num=next_num
 
 
-select e1.employee_id , ifnull(e2.department_id,e1.department_id) as department_id
-from employee e1
-left join employee e2 on 
-e1.employee_id=e2.employee_id and e2.primary_flag='Y'
-group by e1.employee_id
+
+---------------------------
+Table: Products
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| product_id    | int     |
+| new_price     | int     |
+| change_date   | date    |
++---------------+---------+
+(product_id, change_date) is the primary key (combination of columns with unique values) of this table.
+Each row of this table indicates that the price of some product was changed to a new price at some date.
+Initially, all products have price 10.
+
+Write a solution to find the prices of all products on the date 2019-08-16.
+
+Return the result table in any order.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Products table:
++------------+-----------+-------------+
+| product_id | new_price | change_date |
++------------+-----------+-------------+
+| 1          | 20        | 2019-08-14  |
+| 2          | 50        | 2019-08-14  |
+| 1          | 30        | 2019-08-15  |
+| 1          | 35        | 2019-08-16  |
+| 2          | 65        | 2019-08-17  |
+| 3          | 20        | 2019-08-18  |
++------------+-----------+-------------+
+Output: 
++------------+-------+
+| product_id | price |
++------------+-------+
+| 2          | 50    |
+| 1          | 35    |
+| 3          | 10    |
++------------+-------+
+
+soln - 
+here we were supposed to get row from each group and then get a list of all products and then join the 2 on product id and filter for rn=1
+
+
+with cte as (
+    select product_id , change_date,
+    row_number () over (partition by p.product_id order by p.change_date desc) as rn
+    from products p
+where p/change_date<='2019-08-16'
+),
+product_list as (
+    select distinct product_id
+    from products 
+)
+select p.product_list,coalesce(p.price,10) as price
+from product_list p 
+left join cte c
+on p.product_id=c.product_id
+where c.rn=1
+
+
+------------
+Table: Queue
+
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| person_id   | int     |
+| person_name | varchar |
+| weight      | int     |
+| turn        | int     |
++-------------+---------+
+person_id column contains unique values.
+This table has the information about all people waiting for a bus.
+The person_id and turn columns will contain all numbers from 1 to n, where n is the number of rows in the table.
+turn determines the order of which the people will board the bus, where turn=1 denotes the first person to board and turn=n denotes the last person to board.
+weight is the weight of the person in kilograms.
+ 
+
+There is a queue of people waiting to board a bus. However, the bus has a weight limit of 1000 kilograms, so there may be some people who cannot board.
+
+Write a solution to find the person_name of the last person that can fit on the bus without exceeding the weight limit. The test cases are generated such that the first person does not exceed the weight limit.
+
+Note that only one person can board the bus at any given turn.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Queue table:
++-----------+-------------+--------+------+
+| person_id | person_name | weight | turn |
++-----------+-------------+--------+------+
+| 5         | Alice       | 250    | 1    |
+| 4         | Bob         | 175    | 5    |
+| 3         | Alex        | 350    | 2    |
+| 6         | John Cena   | 400    | 3    |
+| 1         | Winston     | 500    | 6    |
+| 2         | Marie       | 200    | 4    |
++-----------+-------------+--------+------+
+Output: 
++-------------+
+| person_name |
++-------------+
+| John Cena   |
++-------------+
+Explanation: The folowing table is ordered by the turn for simplicity.
++------+----+-----------+--------+--------------+
+| Turn | ID | Name      | Weight | Total Weight |
++------+----+-----------+--------+--------------+
+| 1    | 5  | Alice     | 250    | 250          |
+| 2    | 3  | Alex      | 350    | 600          |
+| 3    | 6  | John Cena | 400    | 1000         | (last person to board)
+| 4    | 2  | Marie     | 200    | 1200         | (cannot board)
+| 5    | 4  | Bob       | 175    | ___          |
+| 6    | 1  | Winston   | 500    | ___          |
++------+----+-----------+--------+--------------+
+
+with cte as (
+    select person_name ,turn,sum(weight) over (order by turn) as customer
+    from queue
+)
+select person_name
+from cte
+where cum<=1000
+order by turn desc limit 1
+
+
+-----------
+Table: Accounts
+
++-------------+------+
+| Column Name | Type |
++-------------+------+
+| account_id  | int  |
+| income      | int  |
++-------------+------+
+account_id is the primary key (column with unique values) for this table.
+Each row contains information about the monthly income for one bank account.
+ 
+
+Write a solution to calculate the number of bank accounts for each salary category. The salary categories are:
+
+"Low Salary": All the salaries strictly less than $20000.
+"Average Salary": All the salaries in the inclusive range [$20000, $50000].
+"High Salary": All the salaries strictly greater than $50000.
+The result table must contain all three categories. If there are no accounts in a category, return 0.
+
+Return the result table in any order.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Accounts table:
++------------+--------+
+| account_id | income |
++------------+--------+
+| 3          | 108939 |
+| 2          | 12747  |
+| 8          | 87709  |
+| 6          | 91796  |
++------------+--------+
+Output: 
++----------------+----------------+
+| category       | accounts_count |
++----------------+----------------+
+| Low Salary     | 1              |
+| Average Salary | 0              |
+| High Salary    | 3              |
++----------------+----------------+
+Explanation: 
+Low Salary: Account 2.
+Average Salary: No accounts.
+High Salary: Accounts 3, 6, and 8.
+
+soln ---
+1.only using union
+
+select 'low salary' as category , count(*)
+from accounts
+where income < 20000
+
+union all
+select 'average salary' as category , count(*)
+from accounts
+where income between 20000 and 50000
+
+union all 
+select 'high salary' as category , count(*)
+from accounts
+where income > 50000
+
+--
+2.using subquery and union all
+select 'low salary' as category , 
+(select count(*) from accounts where income < 20000) as accounts_count
+
+union all
+select 
+'average salary' as category,
+(select count(*) from accounts where income between 20000 and 50000) as accounts_count
+
+union all
+select 'high salary' as category,
+(select count(*) from accounts where income > 50000) as accounts_count
+
+---
+3.using case when + sum
+select 'low salary', sum(case when income < 20000 then 1 else 0 end) as accounts_count
+from accounts
+
+union all
+select 'average salary' , sum(case when income between 20000 and 50000 then 1 else 0 end) as accounts_count
+from accounts
+
+union all 
+select 'average salary' , sum(case when income > 50000 then 1 else 0 end) as accounts_count
+from accounts
+
+--
+4.using cte + case when
+with cte as (
+select case when income < 20000 then 'low salary'
+when income between 20000 and 50000 then 'average salary'
+else 'high salary'
+end as category,1 count from accounts
+union all 
+select 'low salary',0
+union all
+select 'average salary',0
+union all
+select 'high salary',0
+)
+select category,sum(count) as account_count from cte
+group by category
