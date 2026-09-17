@@ -2192,3 +2192,324 @@ select 'high salary',0
 )
 select category,sum(count) as account_count from cte
 group by category
+
+---------
+Table: Employees
+
++-------------+----------+
+| Column Name | Type     |
++-------------+----------+
+| employee_id | int      |
+| name        | varchar  |
+| manager_id  | int      |
+| salary      | int      |
++-------------+----------+
+In SQL, employee_id is the primary key for this table.
+This table contains information about the employees, their salary, and the ID of their manager. Some employees do not have a manager (manager_id is null). 
+ 
+
+Find the IDs of the employees whose salary is strictly less than $30000 and whose manager left the company. When a manager leaves the company, their information is deleted from the Employees table, but the reports still have their manager_id set to the manager that left.
+
+Return the result table ordered by employee_id.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input:  
+Employees table:
++-------------+-----------+------------+--------+
+| employee_id | name      | manager_id | salary |
++-------------+-----------+------------+--------+
+| 3           | Mila      | 9          | 60301  |
+| 12          | Antonella | null       | 31000  |
+| 13          | Emery     | null       | 67084  |
+| 1           | Kalel     | 11         | 21241  |
+| 9           | Mikaela   | null       | 50937  |
+| 11          | Joziah    | 6          | 28485  |
++-------------+-----------+------------+--------+
+Output: 
++-------------+
+| employee_id |
++-------------+
+| 11          |
++-------------+
+
+Explanation: 
+The employees with a salary less than $30000 are 1 (Kalel) and 11 (Joziah).
+Kalel's manager is employee 11, who is still in the company (Joziah).
+Joziah's manager is employee 6, who left the company because there is no row for employee 6 as it was deleted.
+
+select e.employee_id from employees e 
+left join employees m on 
+e.employee_id=m.manager_id
+where e.salary < 30000 and manager_id is not null
+
+--
+alternate :
+select employee_id from employee
+where manager_id not in (select employee_id from employee) and salary < 30000
+
+
+
+------------
+Table: Seat
+
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| id          | int     |
+| student     | varchar |
++-------------+---------+
+id is the primary key (unique value) column for this table.
+Each row of this table indicates the name and the ID of a student.
+The ID sequence always starts from 1 and increments continuously.
+ 
+
+Write a solution to swap the seat id of every two consecutive students. If the number of students is odd, the id of the last student is not swapped.
+
+Return the result table ordered by id in ascending order.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Seat table:
++----+---------+
+| id | student |
++----+---------+
+| 1  | Abbot   |
+| 2  | Doris   |
+| 3  | Emerson |
+| 4  | Green   |
+| 5  | Jeames  |
++----+---------+
+Output: 
++----+---------+
+| id | student |
++----+---------+
+| 1  | Doris   |
+| 2  | Abbot   |
+| 3  | Green   |
+| 4  | Emerson |
+| 5  | Jeames  |
++----+---------+
+Explanation: 
+Note that if the number of students is odd, there is no need to change the last one's seat.
+
+
+soln - we use case statement and a division to find odd and even 
+select case when id= (select max(id) from seat)%2!=0 then id
+when id%2!=0 then id+1
+when id%2=0 then id-1
+end as id , student from seat
+order by id 
+
+
+---------
+Table: Movies
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| movie_id      | int     |
+| title         | varchar |
++---------------+---------+
+movie_id is the primary key (column with unique values) for this table.
+title is the name of the movie.
+Each movie has a unique title.
+Table: Users
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| user_id       | int     |
+| name          | varchar |
++---------------+---------+
+user_id is the primary key (column with unique values) for this table.
+The column 'name' has unique values.
+Table: MovieRating
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| movie_id      | int     |
+| user_id       | int     |
+| rating        | int     |
+| created_at    | date    |
++---------------+---------+
+(movie_id, user_id) is the primary key (column with unique values) for this table.
+This table contains the rating of a movie by a user in their review.
+created_at is the user's review date. 
+ 
+
+Write a solution to:
+
+Find the name of the user who has rated the greatest number of movies. In case of a tie, return the lexicographically smaller user name.
+Find the movie name with the highest average rating in February 2020. In case of a tie, return the lexicographically smaller movie name.
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Movies table:
++-------------+--------------+
+| movie_id    |  title       |
++-------------+--------------+
+| 1           | Avengers     |
+| 2           | Frozen 2     |
+| 3           | Joker        |
++-------------+--------------+
+Users table:
++-------------+--------------+
+| user_id     |  name        |
++-------------+--------------+
+| 1           | Daniel       |
+| 2           | Monica       |
+| 3           | Maria        |
+| 4           | James        |
++-------------+--------------+
+MovieRating table:
++-------------+--------------+--------------+-------------+
+| movie_id    | user_id      | rating       | created_at  |
++-------------+--------------+--------------+-------------+
+| 1           | 1            | 3            | 2020-01-12  |
+| 1           | 2            | 4            | 2020-02-11  |
+| 1           | 3            | 2            | 2020-02-12  |
+| 1           | 4            | 1            | 2020-01-01  |
+| 2           | 1            | 5            | 2020-02-17  | 
+| 2           | 2            | 2            | 2020-02-01  | 
+| 2           | 3            | 2            | 2020-03-01  |
+| 3           | 1            | 3            | 2020-02-22  | 
+| 3           | 2            | 4            | 2020-02-25  | 
++-------------+--------------+--------------+-------------+
+Output: 
++--------------+
+| results      |
++--------------+
+| Daniel       |
+| Frozen 2     |
++--------------+
+Explanation: 
+Daniel and Monica have rated 3 movies ("Avengers", "Frozen 2" and "Joker") but Daniel is smaller lexicographically.
+Frozen 2 and Joker have a rating average of 3.5 in February but Frozen 2 is smaller lexicographically.
+
+
+soln - 
+1.we use inner join so we only get movies with rating and user who rated atleast 1
+with cte as (
+    select u.name,count(*) as rating_count
+    from user u
+    join movierating m on 
+    u.user_id=m.user_id
+    group by u.user_id,u.name
+),
+cte_m as (
+    select m.title , avg(rating) as avg_rat
+    from movierating mr 
+    join movie m on 
+    mr.movie_id=m.movie_id 
+    where mr.created_at >='2020-02-01' and mr.created_at<='2020-02-28'
+    group by m.movie_id,m.title
+)
+(
+    select name as results from cte
+    order by rating count desc , name desc
+    limit 1
+)
+union all
+(select title as result from cte_m
+order by avg_rating, title desc
+limit 1)
+
+-------
+Table: Customer
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| customer_id   | int     |
+| name          | varchar |
+| visited_on    | date    |
+| amount        | int     |
++---------------+---------+
+In SQL,(customer_id, visited_on) is the primary key for this table.
+This table contains data about customer transactions in a restaurant.
+visited_on is the date on which the customer with ID (customer_id) has visited the restaurant.
+amount is the total paid by a customer.
+ 
+
+You are the restaurant owner and you want to analyze a possible expansion (there will be at least one customer every day).
+
+Compute the moving average of how much the customer paid in a seven days window (i.e., current day + 6 days before). average_amount should be rounded to two decimal places.
+
+Return the result table ordered by visited_on in ascending order.
+
+The result format is in the following example.
+
+ 
+
+Example 1:
+
+Input: 
+Customer table:
++-------------+--------------+--------------+-------------+
+| customer_id | name         | visited_on   | amount      |
++-------------+--------------+--------------+-------------+
+| 1           | Jhon         | 2019-01-01   | 100         |
+| 2           | Daniel       | 2019-01-02   | 110         |
+| 3           | Jade         | 2019-01-03   | 120         |
+| 4           | Khaled       | 2019-01-04   | 130         |
+| 5           | Winston      | 2019-01-05   | 110         | 
+| 6           | Elvis        | 2019-01-06   | 140         | 
+| 7           | Anna         | 2019-01-07   | 150         |
+| 8           | Maria        | 2019-01-08   | 80          |
+| 9           | Jaze         | 2019-01-09   | 110         | 
+| 1           | Jhon         | 2019-01-10   | 130         | 
+| 3           | Jade         | 2019-01-10   | 150         | 
++-------------+--------------+--------------+-------------+
+Output: 
++--------------+--------------+----------------+
+| visited_on   | amount       | average_amount |
++--------------+--------------+----------------+
+| 2019-01-07   | 860          | 122.86         |
+| 2019-01-08   | 840          | 120            |
+| 2019-01-09   | 840          | 120            |
+| 2019-01-10   | 1000         | 142.86         |
++--------------+--------------+----------------+
+Explanation: 
+1st moving average from 2019-01-01 to 2019-01-07 has an average_amount of (100 + 110 + 120 + 130 + 110 + 140 + 150)/7 = 122.86
+2nd moving average from 2019-01-02 to 2019-01-08 has an average_amount of (110 + 120 + 130 + 110 + 140 + 150 + 80)/7 = 120
+3rd moving average from 2019-01-03 to 2019-01-09 has an average_amount of (120 + 130 + 110 + 140 + 150 + 80 + 110)/7 = 120
+4th moving average from 2019-01-04 to 2019-01-10 has an average_amount of (130 + 110 + 140 + 150 + 80 + 110 + 130 + 150)/7 = 142.86
+
+soln :
+1.find the total daily amount 
+then use that amount to calculate the rolling amount over 7 days 
+with daily_summary as (
+select visited_on, sum(amount)as total_daily_amount
+from customers
+group by visited_on
+)
+,rolling_on as 
+(select visited_on , sum(total_Daily_amount) over (order by visited on rows between 6 preceeding and current row ) as amount ,
+round(avg(total_daily_amount) over (order by visited on rows between 6 preceeding and current row),2) as average_amount,
+row_number() over (order by visited_on) as rn
+from daily_summary
+)
+SELECT
+    visited_on,
+    amount,
+    average_amount
+FROM rolling
+WHERE rn >= 7
+ORDER BY visited_on;
+
+here rn>= 7 means start showing records where first 7 row total exist
