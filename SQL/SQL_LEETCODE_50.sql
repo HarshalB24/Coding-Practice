@@ -3132,3 +3132,128 @@ from employee
 )
 select second_highest_salary from cte
 where rn=2
+
+
+------------------
+Assume you're given tables with information on Snapchat users, including their ages and time spent sending and opening snaps.
+
+Write a query to obtain a breakdown of the time spent sending vs. opening snaps as a percentage of total time spent on these activities grouped by age group. Round the percentage to 2 decimal places in the output.
+
+Notes:
+
+Calculate the following percentages:
+time spent sending / (Time spent sending + Time spent opening)
+Time spent opening / (Time spent sending + Time spent opening)
+To avoid integer division in percentages, multiply by 100.0 and not 100.
+Effective April 15th, 2023, the solution has been updated and optimised.
+
+activities Table
+Column Name	Type
+activity_id	integer
+user_id	integer
+activity_type	string ('send', 'open', 'chat')
+time_spent	float
+activity_date	datetime
+activities Example Input
+activity_id	user_id	activity_type	time_spent	activity_date
+7274	123	open	4.50	06/22/2022 12:00:00
+2425	123	send	3.50	06/22/2022 12:00:00
+1413	456	send	5.67	06/23/2022 12:00:00
+1414	789	chat	11.00	06/25/2022 12:00:00
+2536	456	open	3.00	06/25/2022 12:00:00
+age_breakdown Table
+Column Name	Type
+user_id	integer
+age_bucket	string ('21-25', '26-30', '31-25')
+age_breakdown Example Input
+user_id	age_bucket
+123	31-35
+456	26-30
+789	21-25
+Example Output
+age_bucket	send_perc	open_perc
+26-30	65.40	34.60
+31-35	43.75	56.25
+Explanation
+Using the age bucket 26-30 as example, the time spent sending snaps was 5.67 and the time spent opening snaps was 3.
+
+To calculate the percentage of time spent sending snaps, we divide the time spent sending snaps by the total time spent on sending and opening snaps, which is 5.67 + 3 = 8.67.
+
+So, the percentage of time spent sending snaps is 5.67 / (5.67 + 3) = 65.4%, and the percentage of time spent opening snaps is 3 / (5.67 + 3) = 34.6%.
+
+The dataset you are querying against may have different input & output - this is just an example!
+
+
+Soln - 
+1.output grain - one row per age_bucket
+2.base row set - all rows from both table for matching ids
+3.pattern - case when with group by and join
+4.join type - inner bcz we want only for matching users /can also use left join
+5.filter - none only group by 
+6.missing / required - none
+
+so basically first we find the total time spent for sending and then total time for openingg and then do the class
+with cte as (
+select b.age_bucket,sum(time_spent) as total_time,
+sum(case when activity_type='open' then time_spent else 0 end ) as open_time_spent,
+sum(case when activity_type='send' then time_spent else 0 end)as send_time_spent
+from activities a 
+left join age_breakdown b on 
+a.user_id=b.user_id
+group by age_bucket
+)
+select age_bucket ,
+round((send_time_spent *100 /(send_time_spent + open_time_spent)),2) as send_perc,
+round((open_time_spent *100 /(send_time_spent + open_time_spent)),2) as send_perc
+from cte
+
+
+-----------
+Given a table of tweet data over a specified time period, calculate the 3-day rolling average of tweets for each user. Output the user ID, tweet date, and rolling averages rounded to 2 decimal places.
+
+Notes:
+
+A rolling average, also known as a moving average or running mean is a time-series technique that examines trends in data over a specified period of time.
+In this case, we want to determine how the tweet count for each user changes over a 3-day period.
+Effective April 7th, 2023, the problem statement, solution and hints for this question have been revised.
+
+tweets Table:
+Column Name	Type
+user_id	integer
+tweet_date	timestamp
+tweet_count	integer
+tweets Example Input:
+user_id	tweet_date	tweet_count
+111	06/01/2022 00:00:00	2
+111	06/02/2022 00:00:00	1
+111	06/03/2022 00:00:00	3
+111	06/04/2022 00:00:00	4
+111	06/05/2022 00:00:00	5
+Example Output:
+user_id	tweet_date	rolling_avg_3d
+111	06/01/2022 00:00:00	2.00
+111	06/02/2022 00:00:00	1.50
+111	06/03/2022 00:00:00	2.00
+111	06/04/2022 00:00:00	2.67
+111	06/05/2022 00:00:00	4.00
+
+Soln - 
+output grain - one row per user id
+base set - all rows
+pattern - windows function 
+join - none
+filter - none
+
+select user_id, tweet_date , avg(tweet_count) over (partition by user_id order by tweet_Date rows between 2 preceding and current row)as avg_rolling
+from tweets
+
+or
+with cte as (
+select user_id , tweet_date , 
+round(avg(tweet_count) over (partition by user_id order by tweet_date rows between 2 Preceding and current row),2) as rolling_avg_3d
+
+from tweets
+)
+select user_id , tweet_date , rolling_avg_3d
+from cte 
+
