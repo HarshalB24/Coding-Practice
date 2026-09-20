@@ -3257,3 +3257,175 @@ from tweets
 select user_id , tweet_date , rolling_avg_3d
 from cte 
 
+-------------
+Assume you're given a table containing data on Amazon customers and their spending on products in different category, write a query to identify the top two highest-grossing products within each category in the year 2022. The output should include the category, product, and total spend.
+
+product_spend Table:
+Column Name	Type
+category	string
+product	string
+user_id	integer
+spend	decimal
+transaction_date	timestamp
+product_spend Example Input:
+category	product	user_id	spend	transaction_date
+appliance	refrigerator	165	246.00	12/26/2021 12:00:00
+appliance	refrigerator	123	299.99	03/02/2022 12:00:00
+appliance	washing machine	123	219.80	03/02/2022 12:00:00
+electronics	vacuum	178	152.00	04/05/2022 12:00:00
+electronics	wireless headset	156	249.90	07/08/2022 12:00:00
+electronics	vacuum	145	189.00	07/15/2022 12:00:00
+Example Output:
+category	product	total_spend
+appliance	refrigerator	299.99
+appliance	washing machine	219.80
+electronics	vacuum	341.00
+electronics	wireless headset	249.90
+
+
+soln - 
+the mistake i did was i sumed the spend but in rank i didnt use sum(spend) then i didnt use <= and only used = and also didnt group by for category
+and order by also
+
+with cte as (
+select category , product , sum(spend) as total_Spend,dense_rank() over (partition by category order by sum(spend) desc) as rn
+from product_spend
+where extract(year from transaction_Date)=2022
+group by category , product)
+select category , product, total_spend
+from cte 
+where rn<=2
+order by category , rn 
+
+
+------------------
+As part of an ongoing analysis of salary distribution within the company, your manager has requested a report identifying high earners in each department. A 'high earner' within a department is defined as an employee with a salary ranking among the top three salaries within that department.
+
+You're tasked with identifying these high earners across all departments. Write a query to display the employee's name along with their department name and salary. In case of duplicates, sort the results of department name in ascending order, then by salary in descending order. If multiple employees have the same salary, then order them alphabetically.
+
+Note: Ensure to utilize the appropriate ranking window function to handle duplicate salaries effectively.
+
+As of June 18th, we have removed the requirement for unique salaries and revised the sorting order for the results.
+
+employee Schema:
+column_name	type	description
+employee_id	integer	The unique ID of the employee.
+name	string	The name of the employee.
+salary	integer	The salary of the employee.
+department_id	integer	The department ID of the employee.
+manager_id	integer	The manager ID of the employee.
+employee Example Input:
+employee_id	name	salary	department_id	manager_id
+1	Emma Thompson	3800	1	6
+2	Daniel Rodriguez	2230	1	7
+3	Olivia Smith	2000	1	8
+4	Noah Johnson	6800	2	9
+5	Sophia Martinez	1750	1	11
+6	Liam Brown	13000	3	
+7	Ava Garcia	12500	3	
+8	William Davis	6800	2	
+9	Isabella Wilson	11000	3	
+10	James Anderson	4000	1	11
+department Schema:
+column_name	type	description
+department_id	integer	The department ID of the employee.
+department_name	string	The name of the department.
+department Example Input:
+department_id	department_name
+1	Data Analytics
+2	Data Science
+Example Output:
+department_name	name	salary
+Data Analytics	James Anderson	4000
+Data Analytics	Emma Thompson	3800
+Data Analytics	Daniel Rodriguez	2230
+Data Science	Noah Johnson	6800
+Data Science	William Davis	6800
+The output displays the high earners in each department.
+
+In the Data Analytics deaprtment, James Anderson leads with a salary of $4,000, followed by Emma Thompson earning $3,800, and Daniel Rodriguez with $2,230.
+In the Data Science department, both Noah Johnson and William Davis earn $6,800, with Noah listed before William due to alphabetical ordering.
+The dataset you are querying against may have different input & output - this is just an example!
+
+soln - the mistake i made was of using the wrong order by
+--find highest earner per dept 
+---output grain - all employee per dept which satisfy the conditions
+--base set - all rows from dept and employee
+---pattern - join with windows function and group BY
+---- filter - emp with rn <=3  , sort by dept asc , sal desc in ccase of tie order by name ASC
+
+with cte as (
+select d.department_id , d.department_name,e.name , e.salary , 
+dense_rank() over (partition by d.department_id  order by e.salary desc) as rn 
+from employee e 
+join department d on 
+e.department_id=d.department_id
+group by d.department_id,d.department_name,e.name , e.salary 
+
+)
+select department_name , name ,salary
+from cte 
+where rn<=3
+order by department_name,salary desc, name asc
+
+Alternate :
+with ranked_salary as (
+select name , salary , department_id , dense_rank () over (partition by department_id order by salary desc)as rn
+from employee
+)
+select d.department_name,s.name,s.salary 
+from ranked_salary as s
+join department d on 
+s.department_id=d.department_id
+where s.rn<=3
+order by d.department_name , s.salary desc,s.name 
+
+
+------------
+New TikTok users sign up with their emails. They confirmed their signup by replying to the text confirmation to activate their accounts. Users may receive multiple text messages for account confirmation until they have confirmed their new account.
+
+A senior analyst is interested to know the activation rate of specified users in the emails table. Write a query to find the activation rate. Round the percentage to 2 decimal places.
+
+Definitions:
+
+emails table contain the information of user signup details.
+texts table contains the users' activation information.
+Assumptions:
+
+The analyst is interested in the activation rate of specific users in the emails table, which may not include all users that could potentially be found in the texts table.
+For example, user 123 in the emails table may not be in the texts table and vice versa.
+Effective April 4th 2023, we added an assumption to the question to provide additional clarity.
+
+emails Table:
+Column Name	Type
+email_id	integer
+user_id	integer
+signup_date	datetime
+emails Example Input:
+email_id	user_id	signup_date
+125	7771	06/14/2022 00:00:00
+236	6950	07/01/2022 00:00:00
+433	1052	07/09/2022 00:00:00
+texts Table:
+Column Name	Type
+text_id	integer
+email_id	integer
+signup_action	varchar
+texts Example Input:
+text_id	email_id	signup_action
+6878	125	Confirmed
+6920	236	Not Confirmed
+6994	236	Confirmed
+'Confirmed' in signup_action means the user has activated their account and successfully completed the signup process.
+
+Example Output:
+confirm_rate
+0.67
+Explanation:
+67% of users have successfully completed their signup and activated their accounts. The remaining 33% have not yet replied to the text to confirm their signup.
+
+soln - the mistake i was making here was to use case when for signup action but all i had to do was do filtering for users with confirmed action
+select round(count(t.email_id):: decimal/ count(distinct e.email_id),2) as activation_Rate
+from emails e 
+left join texts t 
+on e.email_id=t.email_id and t.signup_Action='Confirmed'
