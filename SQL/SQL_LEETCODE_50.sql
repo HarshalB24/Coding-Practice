@@ -3614,3 +3614,144 @@ soln - the mistake i did here was i did a extra group by which was not needed
 select sum(Case when device_type='laptop' then 1 else 0 end) as laptop_views,
 sum(Case when device_type in ('mobile,phone' then 1 else 0 end) as mobile_views)
 from viewership
+
+
+
+You're given two tables containing data on Spotify users' streaming activity: songs_history which has historical streaming data, and songs_weekly which has data from the current week.
+
+Write a query that outputs the user ID, song ID, and cumulative count of song plays up to August 4th, 2022, sorted in descending order.
+
+Assume that there may be new users or songs in the songs_weekly table that are not present in the songs_history table.
+
+Definitions:
+
+song_weeklytable only contains data for the week of August 1st to August 7th, 2022.
+songs_history table contains data up to July 31st, 2022. The query should include historical data from this table.
+songs_history Table:
+Column Name	Type
+history_id	integer
+user_id	integer
+song_id	integer
+song_plays	integer
+songs_history Example Input:
+history_id	user_id	song_id	song_plays
+10011	777	1238	11
+12452	695	4520	1
+song_plays field contains the historical data of the number of times a user has played a particular song.
+
+songs_weekly Table:
+Column Name	Type
+user_id	integer
+song_id	integer
+listen_time	datetime
+songs_weekly Example Input:
+user_id	song_id	listen_time
+777	1238	08/01/2022 12:00:00
+695	4520	08/04/2022 08:00:00
+125	9630	08/04/2022 16:00:00
+695	9852	08/07/2022 12:00:00
+Example Output:
+user_id	song_id	song_plays
+777	1238	12
+695	4520	2
+125	9630	1
+On 4 August 2022, the data shows that User 777 listened to the song with song ID 1238 for a total of 12 times, with 11 of those times occurring before the current week and 1 time occurring within the current week.
+
+However, the streaming data for User 695 with the song ID 9852 are not included in the output because the streaming date for that record falls outside the date range specified in the question.
+
+soln - 
+When two tables represent the same type of activity across different time periods, think UNION ALL + GROUP BY, not necessarily JOIN. A JOIN combines columns; UNION ALL combines rows.
+
+
+with cte as (
+select user_id,song_id,song_plays
+from songs_history
+union ALL
+
+select user_id,song_id,count(song_id) as song_plays
+from songs_weekly
+where listen_time <'08/05/2022'
+group by user_id,song_id)
+select user_id,
+song_id,
+sum(song_plays) as song_count
+from cte 
+group by user_id,song_id
+order by song_count desc
+
+------------
+Companies often perform salary analyses to ensure fair compensation practices. One useful analysis is to check if there are any employees earning more than their direct managers.
+
+As a HR Analyst, you're asked to identify all employees who earn more than their direct managers. The result should include the employee's ID and name.
+
+employee Schema:
+column_name	type	description
+employee_id	integer	The unique ID of the employee.
+name	string	The name of the employee.
+salary	integer	The salary of the employee.
+department_id	integer	The department ID of the employee.
+manager_id	integer	The manager ID of the employee.
+employee Example Input:
+employee_id	name	salary	department_id	manager_id
+1	Emma Thompson	3800	1	6
+2	Daniel Rodriguez	2230	1	7
+3	Olivia Smith	7000	1	8
+4	Noah Johnson	6800	2	9
+5	Sophia Martinez	1750	1	11
+6	Liam Brown	13000	3	NULL
+7	Ava Garcia	12500	3	NULL
+8	William Davis	6800	2	NULL
+Example Output:
+employee_id	employee_name
+3	Olivia Smith
+The output shows that Olivia Smith earns $7,000, surpassing her manager, William David who earns $6,800.
+
+
+select e.employee_id ,e.name
+from employee e 
+join employee m on 
+e.manager_id=m.employee_id
+where e.salary>m.salary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
