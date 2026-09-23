@@ -3714,7 +3714,296 @@ e.manager_id=m.employee_id
 where e.salary>m.salary
 
 
+-----------
+Assume you have an events table on Facebook app analytics. Write a query to calculate the click-through rate (CTR) for the app in 2022 and round the results to 2 decimal places.
 
+Definition and note:
+
+Percentage of click-through rate (CTR) = 100.0 * Number of clicks / Number of impressions
+To avoid integer division, multiply the CTR by 100.0, not 100.
+events Table:
+Column Name	Type
+app_id	integer
+event_type	string
+timestamp	datetime
+events Example Input:
+app_id	event_type	timestamp
+123	impression	07/18/2022 11:36:12
+123	impression	07/18/2022 11:37:12
+123	click	07/18/2022 11:37:42
+234	impression	07/18/2022 14:15:12
+234	click	07/18/2022 14:16:12
+Example Output:
+app_id	ctr
+123	50.00
+234	100.00
+Explanation
+Let's consider an example of App 123. This app has a click-through rate (CTR) of 50.00% because out of the 2 impressions it received, it got 1 click.
+
+To calculate the CTR, we divide the number of clicks by the number of impressions, and then multiply the result by 100.0 to express it as a percentage. In this case, 1 divided by 2 equals 0.5, and when multiplied by 100.0, it becomes 50.00%. So, the CTR of App 123 is 50.00%.
+
+soln : 
+with cte as (
+select app_id ,sum(Case when event_type='click' then 1 else 0 end ) as no_click,
+sum(Case when event_type='impression' then 1 else 0 end) as no_imp
+from events
+where extract(year from timestamp)=2022
+group by app_id
+)
+select app_id , round((100.0 * no_click / no_imp),2) as ctr from cte
+
+#######################################
+
+23/09/2026
+#####################################
+Given a table containing information about bank deposits and withdrawals made using Paypal, write a query to retrieve the final account balance for each account, taking into account all the transactions recorded in the table with the assumption that there are no missing transactions.
+
+transactions Table:
+Column Name	Type
+transaction_id	integer
+account_id	integer
+amount	decimal
+transaction_type	varchar
+transactions Example Input:
+transaction_id	account_id	amount	transaction_type
+123	101	10.00	Deposit
+124	101	20.00	Deposit
+125	101	5.00	Withdrawal
+126	201	20.00	Deposit
+128	201	10.00	Withdrawal
+Example Output:
+account_id	final_balance
+101	25.00
+201	10.00
+Using account ID 101 as an example, $30.00 was deposited into this account, while $5.00 was withdrawn. Therefore, the final account balance can be calculated as the difference between the total deposits and withdrawals which is $30.00 - $5.00, resulting in a final balance of $25.00
+
+soln - 
+with cte as (
+select account_id , sum(Case when transaction_type='Deposit' then amount else 0 end) as total_deposit,
+sum(case when transaction_type='Withdrawal' then amount else 0 end) as withdraw_amount
+from transactions
+group by account_id
+)
+select account_id , (total_deposit - withdraw_amount) as final_balance
+from cte
+
+-----------------
+Assume you're given tables with information about TikTok user sign-ups and confirmations through email and text. New users on TikTok sign up using their email addresses, and upon sign-up, each user receives a text message confirmation to activate their account.
+
+Write a query to display the user IDs of those who did not confirm their sign-up on the first day, but confirmed on the second day.
+
+Definition:
+
+action_date refers to the date when users activated their accounts and confirmed their sign-up through text messages.
+emails Table:
+Column Name	Type
+email_id	integer
+user_id	integer
+signup_date	datetime
+emails Example Input:
+email_id	user_id	signup_date
+125	7771	06/14/2022 00:00:00
+433	1052	07/09/2022 00:00:00
+texts Table:
+Column Name	Type
+text_id	integer
+email_id	integer
+signup_action	string ('Confirmed', 'Not confirmed')
+action_date	datetime
+texts Example Input:
+text_id	email_id	signup_action	action_date
+6878	125	Confirmed	06/14/2022 00:00:00
+6997	433	Not Confirmed	07/09/2022 00:00:00
+7000	433	Confirmed	07/10/2022 00:00:00
+Example Output:
+user_id
+1052
+Explanation:
+Only User 1052 confirmed their sign-up on the second day.
+
+soln - the mistakee i made here was just to not be able to identify how to get second date 
+select distinct user_id
+ from emails E
+ join texts t on 
+ e.email_id=t.email_id
+ where t.action_Date=e.signup_Date + interval '1 Day' and t.signup_action='Confirmed'
+
+
+ ###############----------
+ IBM is analyzing how their employees are utilizing the Db2 database by tracking the SQL queries executed by their employees. The objective is to generate data to populate a histogram that shows the number of unique queries run by employees during the third quarter of 2023 (July to September). Additionally, it should count the number of employees who did not run any queries during this period.
+
+Display the number of unique queries as histogram categories, along with the count of employees who executed that number of unique queries.
+
+queries Schema:
+Column Name	Type	Description
+employee_id	integer	The ID of the employee who executed the query.
+query_id	integer	The unique identifier for each query (Primary Key).
+query_starttime	datetime	The timestamp when the query started.
+execution_time	integer	The duration of the query execution in seconds.
+queries Example Input:
+Assume that the table below displays all queries made from July 1, 2023 to 31 July, 2023:
+
+employee_id	query_id	query_starttime	execution_time
+226	856987	07/01/2023 01:04:43	2698
+132	286115	07/01/2023 03:25:12	2705
+221	33683	07/01/2023 04:34:38	91
+240	17745	07/01/2023 14:33:47	2093
+110	413477	07/02/2023 10:55:14	470
+employees Schema:
+Assume that the table below displays all employees in the table:
+
+Column Name	Type	Description
+employee_id	integer	The ID of the employee who executed the query.
+full_name	string	The full name of the employee.
+gender	string	The gender of the employee.
+employees Example Input:
+employee_id	full_name	gender
+1	Judas Beardon	Male
+2	Lainey Franciotti	Female
+3	Ashbey Strahan	Male
+Example Output:
+unique_queries	employee_count
+0	191
+1	46
+2	12
+3	1
+The output indicates that 191 employees did not run any queries, 46 employees ran exactly 1 unique queries, 12 employees ran 2 unique queries, and so on.
+
+soln - the mistake i did here was i was simply not able to get count of unique queries per employee
+
+1.first find unique count of queries by employees`
+2.find employee count and thier query count
+
+with cte as (
+select e.employee_id , coalesce(count(distinct query_id),0) as unique_count
+from employees e
+left join queries q
+e.employee_id=q.employee_id  and starttime >='2023-07-01' and starttime <='2023-10-31'
+group by e.employee_id
+)
+select unique_count,count(e.employee_id) as employee_count
+from cte
+group by unique_count
+
+#####################################
+Your team at JPMorgan Chase is preparing to launch a new credit card, and to gain some insights, you're analyzing how many credit cards were issued each month.
+
+Write a query that outputs the name of each credit card and the difference in the number of issued cards between the month with the highest issuance cards and the lowest issuance. Arrange the results based on the largest disparity.
+
+monthly_cards_issued Table:
+Column Name	Type
+card_name	string
+issued_amount	integer
+issue_month	integer
+issue_year	integer
+monthly_cards_issued Example Input:
+card_name	issued_amount	issue_month	issue_year
+Chase Freedom Flex	55000	1	2021
+Chase Freedom Flex	60000	2	2021
+Chase Freedom Flex	65000	3	2021
+Chase Freedom Flex	70000	4	2021
+Chase Sapphire Reserve	170000	1	2021
+Chase Sapphire Reserve	175000	2	2021
+Chase Sapphire Reserve	180000	3	2021
+Example Output:
+card_name	difference
+Chase Freedom Flex	15000
+Chase Sapphire Reserve	10000
+Chase Freedom Flex's best month was 70k cards issued and the worst month was 55k cards, so the difference is 15k cards.
+
+Chase Sapphire Reserve’s best month was 180k cards issued and the worst month was 170k cards, so the difference is 10k cards.
+
+soln - 
+select card_name , (max(issued_amount) - min(issued_amount)) as difference
+from monthly_cards_issued
+group by card_name
+order by difference desc
+
+#############
+You're trying to find the mean number of items per order on Alibaba, rounded to 1 decimal place using tables which includes information on the count of items in each order (item_count table) and the corresponding number of orders for each item count (order_occurrences table).
+
+items_per_order Table:
+Column Name	Type
+item_count	integer
+order_occurrences	integer
+items_per_order Example Input:
+item_count	order_occurrences
+1	500
+2	1000
+3	800
+4	1000
+There are a total of 500 orders with one item per order, 1000 orders with two items per order, and 800 orders with three items per order."
+
+Example Output:
+mean
+2.7
+Explanation
+Let's calculate the arithmetic average:
+
+Total items = (1*500) + (2*1000) + (3*800) + (4*1000) = 8900
+
+Total orders = 500 + 1000 + 800 + 1000 = 3300
+
+Mean = 8900 / 3300 = 2.7
+
+The dataset you are querying against may have different input & output - this is just an example!
+
+soln - 
+select 
+round(sum(item_count::decimal*order_occurrences)/sum(order_occurrences),1) as mean
+from items_per_order
+
+
+############
+A Microsoft Azure Supercloud customer is defined as a customer who has purchased at least one product from every product category listed in the products table.
+
+Write a query that identifies the customer IDs of these Supercloud customers.
+
+customer_contracts Table:
+Column Name	Type
+customer_id	integer
+product_id	integer
+amount	integer
+customer_contracts Example Input:
+customer_id	product_id	amount
+1	1	1000
+1	3	2000
+1	5	1500
+2	2	3000
+2	6	2000
+products Table:
+Column Name	Type
+product_id	integer
+product_category	string
+product_name	string
+products Example Input:
+product_id	product_category	product_name
+1	Analytics	Azure Databricks
+2	Analytics	Azure Stream Analytics
+4	Containers	Azure Kubernetes Service
+5	Containers	Azure Service Fabric
+6	Compute	Virtual Machines
+7	Compute	Azure Functions
+Example Output:
+customer_id
+1
+Explanation:
+Customer 1 bought from Analytics, Containers, and Compute categories of Azure, and thus is a Supercloud customer. Customer 2 isn't a Supercloud customer, since they don't buy any container services from Azure.
+
+The dataset you are querying against may have different input & output - this is just an example!
+
+soln - 
+this question i was not able to identify the logic on how to find if which customer has engaged with atleast one product from each category
+
+with cte as (
+select c.customer_id,count(distinct product_id) as product_count
+from customer_contract c
+join products p on 
+c.product_id=c.product_id
+group by c.customer_id
+)
+select c.customer_id from cte 
+where product_count=(select count(distinct product_category) from products)
 
 
 
