@@ -4046,7 +4046,94 @@ order by profit desc
 limit 3
 
 
+######################
+CVS Health is analyzing its pharmacy sales data, and how well different products are selling in the market. Each drug is exclusively manufactured by a single manufacturer.
 
+Write a query to identify the manufacturers associated with the drugs that resulted in losses for CVS Health and calculate the total amount of losses incurred.
+
+Output the manufacturer's name, the number of drugs associated with losses, and the total losses in absolute value. Display the results sorted in descending order with the highest losses displayed at the top.
+
+If you like this question, try out Pharmacy Analytics (Part 3)!
+
+pharmacy_sales Table:
+Column Name	Type
+product_id	integer
+units_sold	integer
+total_sales	decimal
+cogs	decimal
+manufacturer	varchar
+drug	varchar
+pharmacy_sales Example Input:
+product_id	units_sold	total_sales	cogs	manufacturer	drug
+156	89514	3130097.00	3427421.73	Biogen	Acyclovir
+25	222331	2753546.00	2974975.36	AbbVie	Lamivudine and Zidovudine
+50	90484	2521023.73	2742445.90	Eli Lilly	Dermasorb TA Complete Kit
+98	110746	813188.82	140422.87	Biogen	Medi-Chord
+Example Output:
+manufacturer	drug_count	total_loss
+Biogen	1	297324.73
+AbbVie	1	221429.36
+Eli Lilly	1	221422.17
+Explanation:
+The first three rows indicate that some drugs resulted in losses. Among these, Biogen had the highest losses, followed by AbbVie and Eli Lilly. However, the Medi-Chord drug manufactured by Biogen reported a profit and was excluded from the result.
+
+Soln - i missed to do the sum since it was at manufacturer level
+
+1.SELECT
+  manufacturer,
+  COUNT(drug) AS drug_count,
+  ABS(SUM(total_sales - cogs)) AS total_loss
+FROM pharmacy_sales
+WHERE total_sales - cogs <= 0
+GROUP BY manufacturer
+ORDER BY total_loss DESC;
+
+2.alternative : 
+SELECT
+  manufacturer,
+  COUNT(drug) AS drug_count, 
+  SUM(cogs - total_sales) AS total_loss
+FROM pharmacy_sales
+WHERE cogs > total_sales
+GROUP BY manufacturer
+ORDER BY total_loss DESC;
+
+################################
+CVS Health wants to gain a clearer understanding of its pharmacy sales and the performance of various products.
+
+Write a query to calculate the total drug sales for each manufacturer. Round the answer to the nearest million and report your results in descending order of total sales. In case of any duplicates, sort them alphabetically by the manufacturer name.
+
+Since this data will be displayed on a dashboard viewed by business stakeholders, please format your results as follows: "$36 million".
+
+If you like this question, try out Pharmacy Analytics (Part 4)!
+
+pharmacy_sales Table:
+Column Name	Type
+product_id	integer
+units_sold	integer
+total_sales	decimal
+cogs	decimal
+manufacturer	varchar
+drug	varchar
+pharmacy_sales Example Input:
+product_id	units_sold	total_sales	cogs	manufacturer	drug
+94	132362	2041758.41	1373721.70	Biogen	UP and UP
+9	37410	293452.54	208876.01	Eli Lilly	Zyprexa
+50	90484	2521023.73	2742445.9	Eli Lilly	Dermasorb
+61	77023	500101.61	419174.97	Biogen	Varicose Relief
+136	144814	1084258.00	1006447.73	Biogen	Burkhart
+Example Output:
+manufacturer	sale
+Biogen	$4 million
+Eli Lilly	$3 million
+Explanation
+The total sales for Biogen is $4 million ($2,041,758.41 + $500,101.61 + $1,084,258.00 = $3,626,118.02) and for Eli Lilly is $3 million ($293,452.54 + $2,521,023.73 = $2,814,476.27).
+
+soln - 
+select manufacturer , concat('$',round(sum(total_Sales)/1000000),' million') as sales
+from pharmacy_sales
+group by manufacturer
+order by sum(total_sales) desc , manufacturer
 
 
 
