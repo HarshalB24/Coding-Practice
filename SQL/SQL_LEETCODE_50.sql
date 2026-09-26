@@ -4220,6 +4220,130 @@ group by measurement_day
 
 
 
+##################################
+Zomato is a leading online food delivery service that connects users with various restaurants and cuisines, allowing them to browse menus, place orders, and get meals delivered to their doorsteps.
+
+Recently, Zomato encountered an issue with their delivery system. Due to an error in the delivery driver instructions, each item's order was swapped with the item in the subsequent row. As a data analyst, you're asked to correct this swapping error and return the proper pairing of order ID and item.
+
+If the last item has an odd order ID, it should remain as the last item in the corrected data. For example, if the last item is Order ID 7 Tandoori Chicken, then it should remain as Order ID 7 in the corrected data.
+
+In the results, return the correct pairs of order IDs and items.
+
+orders Schema:
+column_name	type	description
+order_id	integer	The ID of each Zomato order.
+item	string	The name of the food item in each order.
+orders Example Input:
+Here's a sample of the initial incorrect data:
+
+order_id	item
+1	Chow Mein
+2	Pizza
+3	Pad Thai
+4	Butter Chicken
+5	Eggrolls
+6	Burger
+7	Tandoori Chicken
+orders Example Output:
+The corrected data should look like this:
+
+corrected_order_id	item
+1	Pizza
+2	Chow Mein
+3	Butter Chicken
+4	Pad Thai
+5	Burger
+6	Eggrolls
+7	Tandoori Chicken
+Order ID 1 is now associated with Pizza and Order ID 2 is paired with Chow Mein. This adjustment ensures that each order is correctly aligned with its respective item, addressing the initial swapping error.
+
+Order ID 7 remains unchanged and is still associated with Tandoori Chicken. This preserves the order sequence ensuring that the last odd order ID remains unaltered.
+
+Son - 
+1.first count the total orders this will help in finding whether last order needs to swap or not
+2.then check and swap
+
+with cte as (
+select count(order_id) as total_orders
+from orders)
+select case when order_id %2!=0 and order_id!=total_orders then order_id + 1
+when order_id %2!=0 and order_id=total_orders then order_id else
+order_id -1 end as correct_id,item
+from orders
+cross join cte
+order by correct_id
+
+
+####################################
+The Bloomberg terminal is the go-to resource for financial professionals, offering convenient access to a wide array of financial datasets. As a Data Analyst at Bloomberg, you have access to historical data on stock performance.
+
+Currently, you're analyzing the highest and lowest open prices for each FAANG stock by month over the years.
+
+For each FAANG stock, display the ticker symbol, the month and year ('Mon-YYYY') with the corresponding highest and lowest open prices (refer to the Example Output format). Ensure that the results are sorted by ticker symbol.
+
+stock_prices Schema:
+Column Name	Type	Description
+date	datetime	The specified date (mm/dd/yyyy) of the stock data.
+ticker	varchar	The stock ticker symbol (e.g., AAPL) for the corresponding company.
+open	decimal	The opening price of the stock at the start of the trading day.
+high	decimal	The highest price reached by the stock during the trading day.
+low	decimal	The lowest price reached by the stock during the trading day.
+close	decimal	The closing price of the stock at the end of the trading day.
+stock_prices Example Input:
+Note that the table below displays randomly selected AAPL data.
+
+date	ticker	open	high	low	close
+01/31/2023 00:00:00	AAPL	142.28	142.70	144.34	144.29
+02/28/2023 00:00:00	AAPL	146.83	147.05	149.08	147.41
+03/31/2023 00:00:00	AAPL	161.91	162.44	165.00	164.90
+04/30/2023 00:00:00	AAPL	167.88	168.49	169.85	169.68
+05/31/2023 00:00:00	AAPL	176.76	177.33	179.35	177.25
+Example Output:
+ticker	highest_mth	highest_open	lowest_mth	lowest_open
+AAPL	May-2023	176.76	Jan-2023	142.28
+Apple Inc. (AAPL) achieved its highest opening price of $176.76 in May 2023 and its lowest opening price of $142.28 in January 2023.
+
+Soln - 
+1.first find the highest month and open
+then find the lowest month and open then join both on ticker 
+
+
+
+
+
+#################################################################################
+We completed 10 actual LeetCode SQL 50 questions today ✅ — so today's target is done.
+The 10 were:
+1. Rising Temperature
+2. Game Play Analysis I — First Login
+3. Second Highest Salary
+4. Find Followers Count
+5. Customers Who Bought All Products
+6. Biggest Single Number
+7. Exchange Seats
+8. Investments in 2016
+9. Product Sales Analysis III
+10. Friend Requests II — Who Has the Most Friends
+I’m not counting the custom reinforcement questions in those 10.
+So status:
+Day 1: 10 / 50 completed ✅
+Remaining: 40
+Target: 4 more days × ~10/day
+And several mistakes from today were already reinforced immediately rather than just moving past them, which is important for the 5-day plan.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+lets go through the reinforced mistakes once again and the patterns
 
 
 
@@ -4228,6 +4352,131 @@ group by measurement_day
 
 
 
+
+
+
+
+Yes. Here’s the short revision sheet for the mistakes we reinforced today.
+Pattern	Mistake you made	Correct reflex
+Previous event vs previous day	Added DATEDIFF = 1 even when question only asked previous transaction/purchase	Previous event = previous row. Previous day = previous row + exact 1-day gap
+Consecutive dates	Checked only > instead of exact gaps	Consecutive = exact date difference, not just order
+Earliest value vs earliest row	Used window logic when only earliest date was needed	Need only value → MIN/MAX; need full row → window
+GROUP BY grain	Grouped by extra columns like date	GROUP BY columns = output grain
+Nth distinct value	Initially wrong pattern / wrong rank choice	Nth distinct value → DENSE_RANK()
+Nth row/event	Used DENSE_RANK() for second order	Nth actual row → ROW_NUMBER()
+Window result filtering	Tried using window alias directly in same WHERE	Window first in CTE/subquery, filter outside
+CTE projection	Forgot to carry amount/score into CTE	Outer query can only use columns selected in CTE
+Row vs group metric	Compare each row to department/customer average	Keep row-level detail + group metric → window aggregate
+“Has all required items”	Used WHERE instead of aggregate filtering	Group by entity + HAVING COUNT(DISTINCT item)=total_required
+Duplicate + unique combination	Struggled to construct grouped subqueries	Repeated value → HAVING COUNT(*)>1; unique combo → HAVING COUNT(*)=1
+Pairwise swap	Reversed odd/even movement	Odd → +1, even → -1, final odd stays
+First rows with ties	Mixed MIN() and ranking	If you need all rows from earliest value with ties → DENSE_RANK() and filter rank 1
+Symmetric relationship	Counted only requester/caller side	Same entity in 2 columns → UNION ALL both sides, then aggregate
+
+
+The 5 most important ones for you to revise are:
+1. Nth row → ROW_NUMBER()
+2. Nth distinct value → DENSE_RANK()
+3. Previous event ≠ previous calendar day
+4. Need only aggregate value → MIN/MAX; need row details → window
+5. GROUP BY = output grain
+And one tiny coding check before you submit:
+Did I carry all needed columns? Is my comparison direction right? Is the filter in WHERE or HAVING correctly?
+
+That’s the compact set I’d revise before tomorrow’s next 10.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+also i was not able to solve few correctly like the caller and also duplocate + unique combination
+
+
+
+
+
+
+
+
+
+
+
+
+Yes — those two should absolutely be called out separately because they were not just minor slips. You initially did not identify/construct the right pattern, then we reinforced them.
+For your revision notes, add these two explicitly:
+- Same entity in 2 columns / symmetric relationship
+  - Initial miss: counted only one side (requester_id / caller_id)
+  - Correct pattern: UNION ALL both columns into one id column → GROUP BY id → aggregate
+  - Memory: same entity appears in 2 columns → stack both sides first
+- Duplicate value + unique composite combination
+  - Initial miss: you knew the conditions but couldn’t construct the grouped subqueries cleanly
+  - Correct pattern:
+    - repeated value → GROUP BY x HAVING COUNT(*) > 1
+    - unique pair → GROUP BY x, y HAVING COUNT(*) = 1
+    - outer query filters using IN
+  - Memory: duplicate → count > 1; unique combo → count = 1
+The important distinction is:
+Initially not solved correctly ≠ still not understood
+
+Both were reinforced successfully afterward:
+- caller/receiver pattern → clean pass
+- duplicate + unique-combination pattern → clean pass
+So I’d mark both as:
+Initial status: Missed
+Reinforcement: Passed
+Current status: Clear, but revisit tomorrow once without hints
+That last re-test tomorrow matters because it will tell us whether the pattern actually stuck overnight, rather than only being fresh in short-term memory.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+i will combeack in evening again and we will do 10 questions based on all the patterns we did today from leetcode and mistakes we reinforced
+
+
+
+
+
+
+
+
+
+
+
+
+Perfect. When you come back, we’ll do 10 fresh questions only from today’s patterns and mistakes.
+I’ll mix them so you won’t know which pattern is being tested, including:
+- previous event vs previous calendar day
+- consecutive-date logic
+- ROW_NUMBER vs DENSE_RANK
+- earliest value vs earliest full row
+- output grain / GROUP BY
+- CTE projection
+- row vs group metric
+- “has all required items”
+- duplicate + unique combination
+- symmetric relationship / UNION ALL
+- pairwise swap
+- first rows with ties
+And I’ll assess each on:
+reasoning → pattern choice → SQL → mistake type → whether the gap is actually closed.
+We’ll treat that evening round as a retention test, not just immediate reinforcement.
 
 
 
