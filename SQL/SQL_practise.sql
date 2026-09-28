@@ -421,3 +421,192 @@ Memory line:
 3 consecutive = 1-day gap + 1-day gap.
 
 That’s the one to keep.
+
+Retention Question 6/10
+Table: EmployeeSalary
+Column Name	Type
+employee_id	int
+department_id	int
+salary	int
+
+
+Write a query to return the employee_id and salary for employees whose salary is greater than the average salary of their department.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per employee satisfying the conditon 
+approach - we can do avg salary > sal or we can also use window function
+
+approach 1 : 
+select employee_id ,salary from employeesalary
+where salary > (select avg(salary) from employeesalary group by department_id)
+
+appraoch 2 :
+with cte as (
+select employee_id,salary ., avg(salary) over (partition by department_id) as avg_sal
+from employeesalary
+)
+select employee_id,salary
+from cte 
+where salary > avg_sal
+
+
+
+
+
+
+
+
+
+
+
+
+Approach 2 is correct. Approach 1 is not correct as written.
+Your reasoning is good: this is a row-level output + group-level metric problem, so a window aggregate is a natural fit.
+Your second query only has a typo:
+salary .
+
+should be:
+salary,
+
+Correct version:
+WITH cte AS (
+    SELECT
+        employee_id,
+        salary,
+        AVG(salary) OVER (
+            PARTITION BY department_id
+        ) AS avg_sal
+    FROM EmployeeSalary
+)
+SELECT employee_id, salary
+FROM cte
+WHERE salary > avg_sal;
+
+Why approach 1 is wrong:
+WHERE salary > (
+    SELECT AVG(salary)
+    FROM EmployeeSalary
+    GROUP BY department_id
+)
+
+That subquery returns multiple department averages, while > expects one scalar value.
+If you wanted a subquery approach, you’d need a correlated subquery:
+SELECT e.employee_id, e.salary
+FROM EmployeeSalary e
+WHERE e.salary > (
+    SELECT AVG(e2.salary)
+    FROM EmployeeSalary e2
+    WHERE e2.department_id = e.department_id
+);
+
+Assessment
+- Output grain: ✅
+- Pattern recognition: ✅
+- Window solution: ✅
+- Scalar subquery understanding: ⚠️ needs care
+Memory line:
+Compare each row to its group average → window aggregate or correlated subquery.
+
+Retention Question 7/10
+Table: StudentCourse
+Column Name	Type
+student_id	int
+course_id	int
+
+
+A student may appear multiple times.
+Table: RequiredCourse
+Column Name	Type
+course_id	int
+
+
+Write a query to return the student_id values of students who have completed every course listed in RequiredCourse.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per student who completed all the course
+appraoch - we find count of course completed by each student and then count of all courses and whoever completed all will be otuput
+with cte as (
+select student_id , count(course_id) as student_course_count
+from studentcourse
+group by student_id
+)
+select student_id from cte
+where student_course_count = (select count(Distinct course_id) from requiredcourse)
+
+or other approach is : 
+select s.student_id , count(s.course_id) as student_count
+from studentcourse s
+join requiredcourse r on 
+s.course_id=r.course_id
+having count(s.course_id) = (select count(distinct r.course_id) from requiredcourse)
+
+
+
+
+
+
+
+
+
+
+
+
+Your reasoning is correct, but both SQL versions need a little tightening.
+For the first approach, the main issue is that StudentCourse may contain duplicates, so you should count distinct courses, not raw rows. Otherwise repeated completion records could falsely make a student look like they completed all required courses.
+A clean version is:
+SELECT student_id
+FROM StudentCourse
+GROUP BY student_id
+HAVING COUNT(DISTINCT course_id) = (
+    SELECT COUNT(*)
+    FROM RequiredCourse
+);
+
+This works if StudentCourse.course_id values are all valid required-course keys. If not, then the safer version is to compare only against required courses.
+Your second approach is closer to that safer version, but it is missing a GROUP BY and should also use COUNT(DISTINCT ...):
+SELECT s.student_id
+FROM StudentCourse s
+JOIN RequiredCourse r
+    ON s.course_id = r.course_id
+GROUP BY s.student_id
+HAVING COUNT(DISTINCT s.course_id) = (
+    SELECT COUNT(*)
+    FROM RequiredCourse
+);
+
+So the pattern is still:
+Entity has all required items → GROUP BY entity + HAVING COUNT(DISTINCT matched_item) = total required items
+
+Assessment
+- Output grain: ✅
+- Core pattern: ✅
+- Need for DISTINCT: ⚠️ missed
+- HAVING/GROUP BY: second approach incomplete
+- Overall: Mostly correct, one precision gap
+This one is better than before because you identified the correct pattern immediately.
