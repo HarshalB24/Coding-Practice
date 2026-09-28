@@ -1007,3 +1007,163 @@ For history:
 - Mistake: aggregated all customer orders instead of only first orders
 - Reinforcement needed: yes
 - Status: Needs Revisit
+
+Let’s do a medium one now: Restaurant Growth. This is an exact LeetCode problem. LeetCode
+Table: Customer
+Column Name	Type
+customer_id	int
+name	varchar
+visited_on	date
+amount	int
+
+
+Each row is one customer transaction at the restaurant.
+Write a query to compute, for each day starting from the 7th available day:
+- visited_on
+- total amount paid in the 7-day window ending on that day
+- average_amount over that same 7-day window, rounded to 2 decimals
+The result should be ordered by visited_on ascending. LeetCode
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain = one row per visit when condition is satisfied
+approach - we use the windows function of 6 precedding and current row
+with cte as (
+select visited_on , sum(amount) over (partition by customer_id order by visited_on rows between 6 preceeding and current_row) as total_amount ,avg(amount) over (partition by customer_id order by visited_on rows between 6 preceding and current_row) as avg_amount,row_number() over (order by visited_on) as rn
+from customer
+)
+Select visited_on , total_amount , avg_amount
+from cte
+where rn>=7
+
+
+
+
+
+
+
+
+
+
+
+
+Partially correct — you recognized the rolling-window idea, but the grain is wrong in two places.
+The question is asking for one row per calendar day, not one row per customer visit. And the 7-day window is for the restaurant overall, so you should not partition by customer_id.
+The other important point is that there may be multiple customer rows on the same visited_on, so first you need to collapse them to:
+one row per day → daily total amount
+
+Then apply the 7-day window over those daily totals.
+A clean approach is:
+WITH daily AS (
+    SELECT
+        visited_on,
+        SUM(amount) AS daily_amount
+    FROM Customer
+    GROUP BY visited_on
+),
+rolling AS (
+    SELECT
+        visited_on,
+        SUM(daily_amount) OVER (
+            ORDER BY visited_on
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+        ) AS amount,
+        AVG(daily_amount) OVER (
+            ORDER BY visited_on
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+        ) AS average_amount,
+        ROW_NUMBER() OVER (
+            ORDER BY visited_on
+        ) AS rn
+    FROM daily
+)
+SELECT
+    visited_on,
+    amount,
+    ROUND(average_amount, 2) AS average_amount
+FROM rolling
+WHERE rn >= 7
+ORDER BY visited_on;
+
+Your exact misses were:
+Output grain should be one row per day
+Aggregate to daily totals first
+No PARTITION BY customer_id
+Average should be over daily totals, not individual transactions
+
+Your good instinct was:
+7-day rolling window → current row + 6 preceding
+
+That part was right.
+For history:
+- Pattern: pre-aggregate to correct grain → rolling window
+- Mistake: wrong grain and wrong partition
+- Status: Needs Revisit
+
+
+
+
+
+    
+
+
+
+
+
+
+
+so we took sum(daily_amount) at visited level and then again sumed it so we get daily level amont ?
+
+
+
+
+
+
+
+
+
+
+
+
+Almost. The sequence is:
+First, we calculate one total per day:
+SELECT
+    visited_on,
+    SUM(amount) AS daily_amount
+FROM Customer
+GROUP BY visited_on
+
+So if 10 customers visited on the same day, those 10 rows become one row for that date with the day’s total.
+Then we apply another SUM() as a window over those daily totals:
+SUM(daily_amount) OVER (
+    ORDER BY visited_on
+    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+)
+
+That second SUM() is not creating daily amount again. It is creating the 7-day rolling total.
+So think:
+raw customer transactions → daily total → 7-day rolling total
+
+Example:
+Jan 1 daily_amount = 100
+Jan 2 daily_amount = 200
+Jan 3 daily_amount = 150
+...
+
+Then on Jan 7:
+rolling amount = Jan1 + Jan2 + ... + Jan7
+
+And AVG(daily_amount) gives the average daily revenue across those 7 days.
+That two-step grain change is the important pattern here.
