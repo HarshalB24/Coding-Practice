@@ -223,3 +223,201 @@ So for the retention tracker:
 - Pattern recognition: partial
 - Mistake: chose ROW_NUMBER() despite tie requirement
 - Status: Needs one more reinforcement
+
+Table: Orders
+- order_id
+- customer_id
+- order_date
+- amount
+Write a query to return each customer_id and their latest order date.
+Return exactly one row per customer.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per customer 
+approach - we use row number since we only need latest order date
+with cte as (
+select customer_id , row_number () over (partition by customer_id order by order_date desc) as rn
+from orders
+)
+select customer_id from cte
+where rn=1
+
+
+
+
+
+
+
+
+
+
+
+
+Partially correct. You overused a window again.
+The question asks only for the latest order date, not the full latest order row.
+So the simplest pattern is:
+Need only latest value per group → MAX() + GROUP BY
+
+SELECT
+    customer_id,
+    MAX(order_date) AS latest_order_date
+FROM Orders
+GROUP BY customer_id;
+
+Your current query also misses order_date in the final output.
+So the exact reflex is:
+Need only earliest/latest value → MIN/MAX
+Need full earliest/latest row → window
+
+This is one of the patterns we already reinforced, so mark this as retention miss due to rushing.
+Retention Question 5/10
+Table: Logins
+Column Name	Type
+user_id	int
+login_date	date
+
+
+Write a query to return the user_id values for users who logged in on at least 3 consecutive calendar days.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one record per customer who satisfy conditon
+approach - we use lag window function and datediff 
+
+with cte as (
+select user_id , login_date , lag(login_date,1) over (partition by customer_id order by login_date) as lag_1,lag(login_date,2) over (partition by customer_id order by login_date) as lag_2,
+from  logins
+)
+select user_id form cte 
+where datediff(login_date,lag_1)=1 and datediff(login_date,lag_2)=1
+
+
+
+
+
+
+
+
+
+
+
+
+You chose the right pattern family, but there are a few important misses.
+What you got right
+- Output should be one row per qualifying user_id ✅
+- LAG() is the right idea ✅
+- Need exact date-gap logic ✅
+What went wrong
+- You used customer_id instead of user_id
+- extra comma before FROM
+- form typo
+- most importantly:
+DATEDIFF(login_date, lag_2) = 1
+
+is wrong.
+If you want 3 consecutive days:
+lag_2 -> lag_1 = 1 day
+lag_1 -> current = 1 day
+
+So either use:
+DATEDIFF(login_date, lag_1) = 1
+AND DATEDIFF(lag_1, lag_2) = 1
+
+or:
+DATEDIFF(login_date, lag_1) = 1
+AND DATEDIFF(login_date, lag_2) = 2
+
+Correct version:
+WITH cte AS (
+    SELECT
+        user_id,
+        login_date,
+        LAG(login_date, 1) OVER (
+            PARTITION BY user_id
+            ORDER BY login_date
+        ) AS lag_1,
+        LAG(login_date, 2) OVER (
+            PARTITION BY user_id
+            ORDER BY login_date
+        ) AS lag_2
+    FROM Logins
+)
+SELECT DISTINCT user_id
+FROM cte
+WHERE DATEDIFF(login_date, lag_1) = 1
+  AND DATEDIFF(lag_1, lag_2) = 1;
+
+Exact retention issue
+You remembered:
+consecutive → LAG + DATEDIFF
+
+But the exact condition still isn’t fully automatic yet.
+Keep this one line:
+3 consecutive dates = current-prev = 1 AND prev-prevprev = 1
+
+This pattern is not stable yet, so we should hit it again later tonight.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+ok so it should be datediff(login_Date,lag_1)=1 and datediff(login_date,lag_2)=2 or datediff(lag_1,lag_2)=1 understood
+
+
+
+
+
+
+
+
+
+
+
+
+Exactly.
+For 3 consecutive dates, either of these is valid:
+DATEDIFF(login_date, lag_1) = 1
+AND DATEDIFF(lag_1, lag_2) = 1
+
+or:
+DATEDIFF(login_date, lag_1) = 1
+AND DATEDIFF(login_date, lag_2) = 2
+
+The first version is usually easier to reason about because it checks each adjacent gap directly.
+Memory line:
+3 consecutive = 1-day gap + 1-day gap.
+
+That’s the one to keep.
