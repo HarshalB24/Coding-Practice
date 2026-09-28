@@ -795,3 +795,215 @@ The short memory rule is:
 Repeated value → GROUP BY x HAVING COUNT(*) > 1
 Unique pair → GROUP BY x,y HAVING COUNT(*) = 1
 Outer query uses IN to keep matching rows
+
+
+Retention Question 10/10
+Table: Seat
+Column Name	Type
+id	int
+student	varchar
+
+
+id starts from 1 and is continuous.
+Write a query to swap every pair of consecutive seat ids:
+1 ↔ 2, 3 ↔ 4, 5 ↔ 6, ...
+If the final row has no pair, leave its id unchanged.
+Return all rows ordered by the resulting id.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grian - all orws with correct seat id
+approach - we first check total seats and if its odd we leave it unchanged andd then change the rest 
+
+select case when id %2=1 and id=(select max(id) from seat) then id
+case when id%2!=0 then id+1
+else id-1
+end as id from seat
+order by id
+
+
+
+
+
+
+
+
+
+
+
+
+Logic is basically right; just fix the CASE syntax.
+You wrote two CASE keywords. It should be one CASE with multiple WHENs:
+SELECT
+    CASE
+        WHEN id % 2 = 1
+             AND id = (SELECT MAX(id) FROM Seat)
+        THEN id
+        WHEN id % 2 = 1
+        THEN id + 1
+        ELSE id - 1
+    END AS id,
+    student
+FROM Seat
+ORDER BY id;
+
+Assessment:
+- Output grain: ✅
+- Pattern recognition: ✅
+- Odd-last handling: ✅
+- Swap direction: ✅
+- SQL syntax: minor slip only
+So this pattern is stable now.
+For the 10-question retention round, the main items still needing revisit are:
+- duplicate single value + unique composite pair
+- symmetric relationship: UNION ALL first, aggregate second
+- earliest/latest: value only vs full row/ties
+- 3 consecutive dates exact-gap condition
+- CTE projection / outer query reading from CTE
+- “has all required items” → COUNT(DISTINCT) precision
+
+
+#######################
+LeetCode SQL 50 — Question 13/50
+Let’s do a medium one now: Game Play Analysis IV. This is an exact SQL 50 problem. LeetCode
+Table: Activity
+Column Name	Type
+player_id	int
+device_id	int
+event_date	date
+games_played	int
+
+
+(player_id, event_date) is the primary key.
+Write a query to report the fraction of players who logged in again on the day immediately after their first login, rounded to 2 decimal places.
+In other words:
+players who logged in on first_login_date + 1 day
+divided by
+total number of distinct players
+
+soln - 
+1.first find the first login of a player then find which player logged in the immediate next date and divide those by total player
+
+with first_login as (
+    select player_id , min(event_Date) as first_login_date
+    from activity
+    group by player_id
+)
+select round(count(distinct case when a.event_date=f.first_date,interval 1 Day )then a.player_id)*1.0/count(distinct player_id) as fraction
+from first_login f 
+left join activity a 
+on f.player_id=a.player_id
+
+LeetCode SQL 50 — Question 14/50
+Let’s do another medium one: Immediate Food Delivery II. This is an exact SQL 50 problem. LeetCode
+Table: Delivery
+Column Name	Type
+delivery_id	int
+customer_id	int
+order_date	date
+customer_pref_delivery_date	date
+
+
+If customer_pref_delivery_date = order_date, the order is immediate. Otherwise it is scheduled.
+The first order of a customer is the one with the earliest order_date. It is guaranteed that each customer has exactly one first order.
+Write a query to find the percentage of immediate orders among the first orders of all customers, rounded to 2 decimal places.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per customer satisfying the condition
+approach - we first get the count of first orders and then count of immediate orders adn then cal the % 
+
+with cte as (
+select customer_id ,sum(Case when customer_pref_delivery_Date=order_date then 1 else 0 end) as immediate_order , min(order_date) as first_order
+from delivery
+group by customer_id 
+)
+select round(100 * immediate_order / count(first_order) ,2) as perc_immediate_order
+from cte
+
+
+
+
+
+
+
+
+
+
+
+
+Partially correct. Your high-level idea is right, but the query is not isolating each customer’s first order row before deciding whether it was immediate.
+The main issue is here:
+SUM(CASE WHEN customer_pref_delivery_date = order_date THEN 1 ELSE 0 END)
+
+inside a GROUP BY customer_id.
+That counts all immediate orders for the customer, not whether the first order was immediate.
+The clean logic is:
+identify each customer’s first order row → check whether that row is immediate → calculate percentage across customers.
+
+A good solution is:
+WITH first_orders AS (
+    SELECT
+        customer_id,
+        order_date,
+        customer_pref_delivery_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_date
+        ) AS rn
+    FROM Delivery
+)
+SELECT
+    ROUND(
+        100.0 * SUM(
+            CASE
+                WHEN customer_pref_delivery_date = order_date THEN 1
+                ELSE 0
+            END
+        ) / COUNT(*),
+        2
+    ) AS immediate_percentage
+FROM first_orders
+WHERE rn = 1;
+
+Because the problem guarantees exactly one first order per customer, ROW_NUMBER() works cleanly here.
+Exact mistake
+You mixed:
+“find first date”
+
+with
+“count immediate orders”
+
+without first reducing to the actual first-order rows.
+Short memory rule:
+If the condition applies specifically to the first/last row, isolate that row first, then aggregate.
+
+For history:
+- Pattern: first row per group + conditional percentage
+- Mistake: aggregated all customer orders instead of only first orders
+- Reinforcement needed: yes
+- Status: Needs Revisit
