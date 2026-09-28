@@ -1167,3 +1167,131 @@ rolling amount = Jan1 + Jan2 + ... + Jan7
 
 And AVG(daily_amount) gives the average daily revenue across those 7 days.
 That two-step grain change is the important pattern here.
+
+
+
+
+
+LeetCode SQL 50 — Question 17/50
+Let’s do another medium one: Product Price at a Given Date.
+Table: Products
+Column Name	Type
+product_id	int
+new_price	int
+change_date	date
+
+
+Each row shows that a product’s price changed to new_price on change_date.
+Write a query to find the price of each product on 2019-08-16.
+Assume every product had an initial price of 10 before any change.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain  - one row per product 
+approach - we use case when statement and if change_date > 2019-08-16 then new price else 10
+
+select product_id , sum(Case when change_date > 2019-08-16 then new_price else 10 end) as price
+from products
+group by product_id
+
+
+
+
+
+
+
+
+
+
+
+
+Not correct yet — the main issue is the date logic.
+You said:
+if change_date > 2019-08-16 then new price else 10
+
+But we need the price on 2019-08-16, so we care about the latest price change on or before 2019-08-16.
+Example:
+product 1:
+2019-08-10 → 20
+2019-08-14 → 30
+2019-08-20 → 50
+
+Price on Aug 16 = 30, not 10 and not 50.
+So the pattern is:
+latest row per product where change_date <= target_date
+
+If no such row exists → default price = 10.
+A clean solution:
+WITH cte AS (
+    SELECT
+        product_id,
+        new_price,
+        ROW_NUMBER() OVER (
+            PARTITION BY product_id
+            ORDER BY change_date DESC
+        ) AS rn
+    FROM Products
+    WHERE change_date <= '2019-08-16'
+),
+all_products AS (
+    SELECT DISTINCT product_id
+    FROM Products
+)
+SELECT
+    p.product_id,
+    COALESCE(c.new_price, 10) AS price
+FROM all_products p
+LEFT JOIN cte c
+    ON p.product_id = c.product_id
+   AND c.rn = 1;
+
+Your SUM(CASE...) approach doesn't work because a product may have multiple historical price changes, and we don't want to add prices together. We want the single latest applicable row.
+Assessment
+- Output grain: ✅ one row per product
+- Pattern selection: ❌
+- Main mistake: treated this as conditional aggregation instead of latest row before/equal date
+- Status: Needs Revisit
+Memory rule:
+Value as of a date → filter <= date → order descending → take latest row.
+
+
+
+
+
+###############################################
+PATTERN REINFORCEMENT
+
+CHEAT SHEET :
+Pattern	What it means	Typical clue in question	Usual SQL idea
+1. First/last row + condition	Condition must be checked only on the first/latest record, not all records	“first order was…”, “latest transaction is…”	isolate row first with ROW_NUMBER() / MIN-MAX, then apply condition
+2. Pre-aggregate → window	Raw data grain is too detailed, so summarize first, then run rolling/window logic	“daily total”, “7-day average”, “monthly rolling”	GROUP BY date first → then SUM() OVER(...)
+3. Value as of a date	Find the latest value that was valid on/before a target date	“price on 2019-08-16”, “status as of date”	filter date <= target → order DESC → take latest row
+4. Consecutive dates	Need actual calendar continuity, not merely previous available record	“3 consecutive days”, “logged in next day”	LAG() + DATEDIFF(...)=1
+5. Has all required items	Entity must contain every item from another required set	“bought all products”, “completed all courses”	GROUP BY entity + COUNT(DISTINCT item) = total required
+6. Same entity in two columns	One entity can appear in either side/role of a relationship	requester/accepter, caller/receiver	UNION ALL both columns into one column → aggregate
+7. Duplicate one thing + unique combination	Need rows satisfying two independent frequency conditions	duplicate value but unique (x,y) pair	separate GROUP BY ... HAVING checks, then filter original rows
+8. Choose MIN/MAX vs ROW_NUMBER vs DENSE_RANK	Different “first/latest/Nth” questions need different tools	earliest date, full earliest row, tied earliest rows	value only → MIN/MAX; one full row → ROW_NUMBER; all ties → RANK/DENSE_RANK
+
+
+The most important distinction to remember is:
+Ask what exact row/grain the final condition belongs to before writing SQL.
+
+For example:
+- “first order was immediate” → first isolate first order
+- “7-day restaurant revenue” → first get one row per day
+- “price on a date” → latest valid row on/before that date
+- “all products” → compare distinct possessed items with total required items
+And one compact memory line for pattern 8:
+Value only = aggregate, one row = ROW_NUMBER, all tied rows = RANK/DENSE_RANK.
