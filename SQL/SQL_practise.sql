@@ -610,3 +610,188 @@ Assessment
 - HAVING/GROUP BY: second approach incomplete
 - Overall: Mostly correct, one precision gap
 This one is better than before because you identified the correct pattern immediately.
+
+
+Retention Question 8/10
+Table: Connections
+Column Name	Type
+user_a	int
+user_b	int
+connected_at	date
+
+
+Each row means user_a and user_b are connected.
+Write a query to return the user_id with the highest total number of connections, counting connections where the person appears in either user_a or user_b.
+Assume there is only one person with the maximum count.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row of user having highest connection
+appraoch - since its bidectional relation we do union all
+
+with cte as (
+select user_a, as user_id ,count(user_a) as u_count
+from connections
+
+union all 
+select user_b as user_id ,count(user_b) as u_count
+from connections
+)
+select user_id
+from cte
+order by u_count desc
+limit 1
+
+
+
+
+
+ 
+
+
+
+
+
+
+Pattern recognition is correct, but the aggregation is in the wrong place.
+You correctly identified:
+- Output grain: one row for the user with the most connections ✅
+- Pattern: symmetric relation → combine both columns with UNION ALL ✅
+The issue is that you are counting inside each branch before stacking:
+select user_a as user_id, count(user_a) ...
+union all
+select user_b as user_id, count(user_b) ...
+
+That gives one total for all user_a rows and one total for all user_b rows, not one count per person.
+The correct flow is:
+stack both sides first → then group by user → count → sort → top 1
+
+WITH cte AS (
+    SELECT user_a AS user_id
+    FROM Connections
+
+    UNION ALL
+
+    SELECT user_b AS user_id
+    FROM Connections
+)
+SELECT
+    user_id,
+    COUNT(*) AS connection_count
+FROM cte
+GROUP BY user_id
+ORDER BY connection_count DESC
+LIMIT 1;
+
+Exact mistake
+You remembered the right pattern but aggregated before normalizing both sides into one entity column.
+Memory rule:
+Same entity in 2 columns → UNION ALL first, aggregate second.
+
+Status
+- Pattern recognition: ✅
+- SQL structure: ⚠️
+- Retention status: not fully stable yet
+
+
+Retention Question 9/10
+Table: Applications
+Column Name	Type
+application_id	int
+candidate_id	int
+city	varchar
+country	varchar
+score	int
+
+
+Return the sum of score for applications where:
+- candidate_id appears more than once
+- (city, country) appears exactly once
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+   
+
+
+
+
+
+
+
+output grain - one row per application satisfying condition
+appraoch -- group by and having + count
+
+select sum(Score) from applications where 
+application_id = (
+select candidate_id,count(*) from application
+group by application_id
+having count(candidate_id) >1
+) and (city,country) in (
+select application_id,count(*) from applications 
+group by (city,country)
+having count(*)=1)
+
+
+
+
+
+
+
+
+
+
+
+
+This one is not correct yet, and it shows that this pattern still isn’t stable.
+The first issue is the output grain. The query asks for the sum of score, so the final output is:
+one row total
+
+not one row per application.
+Your reasoning should be:
+repeated candidate_id → get candidate IDs with COUNT(*) > 1
+unique (city, country) → get pairs with COUNT(*) = 1
+keep applications matching both conditions
+sum score
+
+The clean query is:
+SELECT SUM(score) AS total_score
+FROM Applications
+WHERE candidate_id IN (
+    SELECT candidate_id
+    FROM Applications
+    GROUP BY candidate_id
+    HAVING COUNT(*) > 1
+)
+AND (city, country) IN (
+    SELECT city, country
+    FROM Applications
+    GROUP BY city, country
+    HAVING COUNT(*) = 1
+);
+
+Your specific mistakes were:
+- used application_id = (...) instead of filtering by candidate_id
+- subquery returned multiple columns
+- grouped by the wrong column
+- for the city/country condition, you need to return city, country, not application_id
+- final output grain was misread
+The short memory rule is:
+Repeated value → GROUP BY x HAVING COUNT(*) > 1
+Unique pair → GROUP BY x,y HAVING COUNT(*) = 1
+Outer query uses IN to keep matching rows
