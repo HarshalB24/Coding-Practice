@@ -139,5 +139,87 @@ If the interviewer wants subject context too, return both:
 SELECT subject_id, student_id
 FROM cte
 WHERE rn = 2;
-
 Status: logic pass, minor implementation slip.
+
+
+Retention Question 3/10
+Table: Activity
+Column Name	Type
+user_id	int
+activity_date	date
+points	int
+
+
+Write a query to return the user_id, activity_date, and points for the earliest activity record(s) of each user.
+If a user has multiple records on their earliest date, return all of them.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per user satisfying the condition 
+approach - we use row number here since we need the earliest activity record
+
+sql :
+with cte as (
+select user_id , activity_date,points ,row_number () over (partition by user_id order by activity_date) as rn
+from activity
+)
+select user_id , activity_date , points from cte
+where rn=1
+
+
+
+
+
+
+
+
+
+
+
+
+Partially correct. You chose the right general family, but because the question says earliest activity record(s) and explicitly says return all rows tied on the earliest date, ROW_NUMBER() is not the best choice.
+If a user has:
+2026-01-01  10
+2026-01-01  20
+2026-01-03  30
+
+ROW_NUMBER() would arbitrarily give one of the two earliest rows rn = 1 and the other rn = 2, so you’d lose a valid tied row.
+Use DENSE_RANK() or RANK() on activity_date instead:
+WITH cte AS (
+    SELECT
+        user_id,
+        activity_date,
+        points,
+        DENSE_RANK() OVER (
+            PARTITION BY user_id
+            ORDER BY activity_date
+        ) AS rn
+    FROM Activity
+)
+SELECT
+    user_id,
+    activity_date,
+    points
+FROM cte
+WHERE rn = 1;
+
+Your exact mistake was:
+Need one actual row → ROW_NUMBER()
+Need all rows tied on earliest/latest value → RANK()/DENSE_RANK()
+
+So for the retention tracker:
+- Pattern recognition: partial
+- Mistake: chose ROW_NUMBER() despite tie requirement
+- Status: Needs one more reinforcement
