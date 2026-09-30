@@ -1514,3 +1514,214 @@ Has all required items → Clear
 Memory line:
 
 Group by entity → count distinct owned items → compare with total required items.
+
+
+output grian = one row per employee satisfying condition
+appraoch -filter valid history rank latest role keep rn=1 left join to all roles and default if missing
+
+select employee_id , role_name,row_number() over (partition  by employee_id order by effective_Date desc) as rn
+from employeerole
+where effective_Date ='2026-09-05'
+),
+all_roles as (
+select distinct role_name from employeerole
+)
+select cte.employee_id,coalesce(cte.role_name,'unassigned') as role
+from cte c left join all_roles r
+on r.emplouee_id = c.employee_id and r.rn=1
+You remembered the right pattern, but the SQL construction got mixed up. The biggest issue is that the “all entities” CTE should contain all employees, not all roles.
+
+Your intended logic was right:
+
+filter valid history → rank latest row → keep rn = 1 → left join to all employees → default missing role
+
+But these parts need fixing:
+
+Target date should be <= '2026-09-25', not = '2026-09-05'
+You need a WITH cte AS ( at the start
+all_roles should actually be all employees
+all_roles only selected role_name, so it cannot join on employee_id
+rn belongs to the ranked CTE, not the all-employees CTE
+In the final SELECT, use the employee ID from the left/base table so employees with no valid historical role are preserved
+Correct version:
+
+WITH cte AS (
+    SELECT
+        employee_id,
+        role_name,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id
+            ORDER BY effective_date DESC
+        ) AS rn
+    FROM EmployeeRole
+    WHERE effective_date <= '2026-09-25'
+),
+all_employees AS (
+    SELECT DISTINCT employee_id
+    FROM EmployeeRole
+)
+SELECT
+    e.employee_id,
+    COALESCE(c.role_name, 'Unassigned') AS role_name
+FROM all_employees e
+LEFT JOIN cte c
+    ON e.employee_id = c.employee_id
+   AND c.rn = 1;
+
+Assessment
+Your pattern recall is now correct. The remaining issue is SQL assembly, not understanding.
+
+Memory line:
+
+As-of date = filter <= target → latest row per entity → join back to all entities → COALESCE default.
+
+I’d still do one more quick one for this pattern before marking it clear.
+
+will mark this as revist lets move
+Yep — marking Q7 “as-of date” as Revisit.
+
+Revision Q8/8
+Table: Orders
+
+order_id
+customer_id
+order_date
+amount
+Return:
+
+customer_id
+order_date
+amount
+for each customer’s latest order.
+
+Assume each customer has exactly one latest order.
+
+Give me:
+
+Output grain → one-line approach → SQL
+
+output grain - one row per customer 
+approach - since we need for latest customer use row numebr
+
+with cte as (
+select customer_id , order_date , amount , row_number () over (partition by customer_id order by order_date desc) as rn
+from orders 
+)
+Select customer_id , order_date , amount
+from cte
+where rn=1
+Correct. ✅
+
+This is exactly the right pattern:
+
+WITH cte AS (
+    SELECT
+        customer_id,
+        order_date,
+        amount,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_date DESC
+        ) AS rn
+    FROM Orders
+)
+SELECT
+    customer_id,
+    order_date,
+    amount
+FROM cte
+WHERE rn = 1;
+
+So for Q8:
+
+Need the full latest row → use ROW_NUMBER() per entity ordered by date DESC.
+
+Revision result
+You’re clear on most of the 8 patterns. The one we should explicitly carry forward as Revisit is:
+
+As-of date / latest valid row on or before a target date
+
+You also had a few minor execution slips today around GROUP BY, DISTINCT, and composite counts, but the underlying patterns were mostly recognized correctly.
+
+Next time we can do a very short 3-question revisit focused on the remaining weak spots, then continue from LeetCode 18/50.
+
+yes
+Great. We’ll do a 3-question mini-revisit first, focused only on the remaining weak spots, then continue with fresh LeetCode from 18/50.
+
+Mini-Revisit Q1/3
+Table: ProductStatus
+
+product_id
+status
+effective_date
+Return each product’s status as of 2026-09-18.
+
+Rules:
+
+Use the latest status row on or before 2026-09-18.
+If a product has no status row on or before that date, return 'Unknown'.
+Give me:
+
+Output grain → one-line approach → SQL
+
+output grain - one row per product 
+Appraoch - filter valid histroy -> apply rn 1 -> left join for all -> default for missing
+
+with cte as (
+select product_id , status , row_number () over (partition by product_id order effective_Date desc) as rn
+from productstatus
+where effective_date <='2026-09-18'),
+all_prods as (
+select distinct product_id from productstatus
+)
+select product_id , coalesce(c.status,'unknown') from cte
+left join all_prods p on 
+c.product_id=p.product_id and c.rn=1
+You remembered the pattern much better this time. ✅ The concept is right; the remaining issues are just SQL construction.
+
+Your intended flow is correct:
+
+filter valid history → rank latest row → keep rn = 1 → left join from all products → default if missing
+
+Fixes needed:
+
+ORDER effective_date DESC → ORDER BY effective_date DESC
+the LEFT JOIN direction should start from all products, because that is the set we must preserve
+select p.product_id, not the ID from the filtered CTE
+Correct version:
+
+WITH cte AS (
+    SELECT
+        product_id,
+        status,
+        ROW_NUMBER() OVER (
+            PARTITION BY product_id
+            ORDER BY effective_date DESC
+        ) AS rn
+    FROM ProductStatus
+    WHERE effective_date <= '2026-09-18'
+),
+all_prods AS (
+    SELECT DISTINCT product_id
+    FROM ProductStatus
+)
+SELECT
+    p.product_id,
+    COALESCE(c.status, 'Unknown') AS status
+FROM all_prods p
+LEFT JOIN cte c
+    ON p.product_id = c.product_id
+   AND c.rn = 1;
+
+Assessment
+Pattern recognition: ✅
+<= target date: ✅
+latest-row ranking: ✅
+default fallback: ✅
+join direction/base table: ⚠️
+syntax: minor slip
+I’d mark this Almost Clear, not fully Revisit anymore.
+
+Memory line:
+
+The table that must preserve every entity goes on the LEFT side of the LEFT JOIN.
