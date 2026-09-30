@@ -1725,3 +1725,211 @@ I’d mark this Almost Clear, not fully Revisit anymore.
 Memory line:
 
 The table that must preserve every entity goes on the LEFT side of the LEFT JOIN.
+
+
+Reinforcement — Consecutive Same Values
+Table: SensorReadings
+reading_id
+sensor_id
+status
+
+reading_id defines the order of readings.
+Return every status that appears in 4 consecutive readings at least once.
+Example:
+reading_id | status
+1          | OK
+2          | FAIL
+3          | FAIL
+4          | FAIL
+5          | FAIL
+6          | OK
+
+Here FAIL qualifies.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output - one row per status
+appraoch - use lag and see if a status appears 4 times
+
+with cte as (
+select reading_id , status , lag(status,1) over (order by reading_id) as lag_1,
+lag(status,2) over (order by reading_id) as lag_2,
+lag(status,3) over (order by reading_id) as lag_3
+from sensorreadings
+)
+select reading_id from cte
+where status=lag_1 and lag_1=lag_2 and lag_2=lag_3
+
+
+
+
+
+
+
+
+
+
+
+
+Conceptually correct. ✅ You fixed the main mistake from the LeetCode question:
+- ordered by the actual sequence column reading_id ✅
+- compared the status values directly ✅
+- used 3 lags for a 4-row streak ✅
+Only the final output is wrong. The question asks for the qualifying status, not reading_id.
+Also use DISTINCT, because the same status could form multiple overlapping 4-row streaks.
+WITH cte AS (
+    SELECT
+        reading_id,
+        status,
+        LAG(status, 1) OVER (ORDER BY reading_id) AS lag_1,
+        LAG(status, 2) OVER (ORDER BY reading_id) AS lag_2,
+        LAG(status, 3) OVER (ORDER BY reading_id) AS lag_3
+    FROM SensorReadings
+)
+SELECT DISTINCT status
+FROM cte
+WHERE status = lag_1
+  AND lag_1 = lag_2
+  AND lag_2 = lag_3;
+
+Pattern status
+Consecutive same value in ordered rows → Clear
+Memory line:
+Order by sequence column → compare values for equality → DISTINCT qualifying value.
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+ok next
+
+
+
+
+
+
+
+
+
+
+
+
+LeetCode SQL 50 — Question 19/50
+Department Top Three Salaries
+Table: Employee
+id
+name
+salary
+departmentId
+
+Table: Department
+id
+name
+
+Return the employees who earn one of the top three distinct salaries in their department.
+Output:
+- Department
+- Employee
+- Salary
+Important: if multiple employees have the same salary, include all of them.
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per employee who satisfy the condition
+appraoch - we use dense rank here since there can be more than one employee earning same sal within dept in top 3
+
+with cte as (
+select d.name as department , e.name as employee , e.salary as salary, dense_rank(0 over (partition by d.name order by e.salary desc) as rn
+from employee e join department d on 
+e.id=d.id
+)
+select department,employee,salary
+from cte 
+where rn<=3
+
+
+
+
+
+
+
+
+
+
+
+
+Your pattern choice is correct. ✅ DENSE_RANK() is exactly right because the problem asks for the top 3 distinct salaries and wants all employees tied at those salary levels.
+There are two SQL mistakes:
+1. Syntax typo:
+dense_rank(0
+
+should be:
+DENSE_RANK()
+
+2. The join condition is wrong. You wrote:
+e.id = d.id
+
+but Employee.departmentId links to Department.id.
+Correct query:
+WITH cte AS (
+    SELECT
+        d.name AS Department,
+        e.name AS Employee,
+        e.salary AS Salary,
+        DENSE_RANK() OVER (
+            PARTITION BY e.departmentId
+            ORDER BY e.salary DESC
+        ) AS rn
+    FROM Employee e
+    JOIN Department d
+        ON e.departmentId = d.id
+)
+SELECT
+    Department,
+    Employee,
+    Salary
+FROM cte
+WHERE rn <= 3;
+
+Assessment:
+- Output grain: ✅
+- Pattern recognition: ✅
+- DENSE_RANK() choice: ✅
+- Tie handling: ✅
+- Join condition: ❌
+- Minor syntax typo: ⚠️
+Memory line:
+Top N distinct values within a group → DENSE_RANK() partitioned by the group.
