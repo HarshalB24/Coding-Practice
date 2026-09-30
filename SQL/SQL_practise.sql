@@ -1933,3 +1933,87 @@ Assessment:
 - Minor syntax typo: ⚠️
 Memory line:
 Top N distinct values within a group → DENSE_RANK() partitioned by the group.
+
+LeetCode SQL 50 — Question 20/50
+Monthly Transactions I
+Table: Transactions
+id
+country
+state
+amount
+trans_date
+
+state is either 'approved' or 'declined'.
+For each month and country, return:
+- month in YYYY-MM format
+- country
+- total number of transactions
+- total amount of transactions
+- number of approved transactions
+- total amount of approved transactions
+Give me:
+Output grain → one-line approach → SQL
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per month and country satisfying conditon
+appraoch - we use the case statement along with group by 
+
+with cte as (
+select month,country , state , count(*) as total_trans,sum(amount) as total_amount , sum(case when status='approved' then 1 else 0 end) as no_approved,sum(Case when status='approved' then amount else 0 end) as approved_amount
+from transactions
+group by month,country
+)select dateformat(month,'%YYYY-MM%') as month , country , total_trans,total_amount,no_approved,approved_amount
+from cte
+
+
+
+
+
+
+
+
+
+
+
+
+Your pattern is correct — this is conditional aggregation grouped by month + country. ✅
+The main issues are column/syntax related:
+- There is no month column; derive it from trans_date.
+- Column is state, not status.
+- MySQL format should be '%Y-%m', not '%YYYY-MM%'.
+- Since you’re already aggregating, the CTE is unnecessary.
+Clean version:
+SELECT
+    DATE_FORMAT(trans_date, '%Y-%m') AS month,
+    country,
+    COUNT(*) AS trans_count,
+    SUM(amount) AS trans_total_amount,
+    SUM(CASE WHEN state = 'approved' THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN state = 'approved' THEN amount ELSE 0 END) AS approved_total_amount
+FROM Transactions
+GROUP BY
+    DATE_FORMAT(trans_date, '%Y-%m'),
+    country;
+
+Assessment
+- Output grain: ✅
+- Pattern recognition: ✅
+- Conditional aggregation: ✅
+- Grouping idea: ✅
+- Column/date-format syntax: ⚠️
+So I’d mark this Clear conceptually.
+Memory line:
+Grouped totals + conditional totals → GROUP BY + SUM(CASE WHEN ... THEN ... END)
+
+Ready for LeetCode 21/50.
