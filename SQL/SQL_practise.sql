@@ -2017,3 +2017,96 @@ Memory line:
 Grouped totals + conditional totals → GROUP BY + SUM(CASE WHEN ... THEN ... END)
 
 Ready for LeetCode 21/50.
+
+
+if i have a table with cols emp id , emp_name , mnth_salary 
+i have to find list off employees with salary greater than annual salary of any employees 
+
+output grain - one record per employee satisfying the condition 
+approach - i already have monthly salary , i will calculate annual salary per employee using sum() windows function and then just compare if salary > annual sal 
+
+with cte as (
+select employee_id , salary , sum(salary) over (partition by employee_id) as annual_sal
+from employees
+)
+select employeee_id from cte
+where salary > annual_sal
+
+now here ignore col name just focus on logic for noww
+Your current logic is not correct for this requirement.
+
+The key thing is the word “any employee”.
+
+If the table has one row per employee with monthly salary, then annual salary is simply:
+
+monthly_salary * 12
+
+You do not need:
+
+SUM(salary) OVER (PARTITION BY employee_id)
+
+because if there is only one row per employee, that sum is just the same monthly salary.
+
+Also, this:
+
+WHERE salary > annual_sal
+
+compares each employee's monthly salary against their own annual salary. Naturally, monthly salary will almost never be greater than its own annual salary.
+
+The requirement is:
+
+Find employees whose monthly salary is greater than the annual salary of at least one other employee.
+
+So conceptually:
+
+Employee monthly salary
+>
+ANY employee's annual salary
+And greater than any / at least one is equivalent to:
+
+monthly salary > minimum annual salary
+
+So the simplest logic is:
+
+SELECT employee_id
+FROM Employees
+WHERE monthly_salary > (
+    SELECT MIN(monthly_salary * 12)
+    FROM Employees
+);
+
+Pattern to remember
+Greater than ANY / at least one → compare against MIN
+
+Greater than ALL → compare against MAX
+
+Example:
+
+A monthly = 100,000 → annual = 1,200,000
+B monthly = 20,000  → annual =   240,000
+C monthly = 30,000  → annual =   360,000
+For A:
+
+100,000 > 240,000 ❌
+So even A doesn't qualify here.
+
+Your main mistake was not the window function itself; it was comparing each employee against their own annual salary instead of comparing against annual salaries across employees.
+
+ahh keep this to revisit and also concept
+Yes — I’ll keep both the question type and the concept in the revisit bucket.
+
+Revisit concept:
+
+Compare against ANY / ALL
+
+Key memory rule:
+
+Greater than ANY / at least one → compare against the MIN
+Greater than ALL → compare against the MAX
+The comparison must be against other rows / the population, not the same employee’s own derived value.
+And the specific mistake to revisit:
+
+You used a window to derive each employee’s own annual salary, then compared monthly salary to that same employee’s annual salary.
+
+We’ll include this in the next revision set before moving much further.
+
