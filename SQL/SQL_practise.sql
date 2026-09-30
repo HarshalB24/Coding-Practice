@@ -1295,3 +1295,222 @@ For example:
 - “all products” → compare distinct possessed items with total required items
 And one compact memory line for pattern 8:
 Value only = aggregate, one row = ROW_NUMBER, all tied rows = RANK/DENSE_RANK.
+
+
+
+
+########################## 30/09/ 2026
+output grain - one row per customer who satisfy the condition
+appraoch - since we need latest order per customer we do a row number and filter with status='cancelled'
+
+with cte as (
+select status,customer_id , row_number () over (partition by customer_id order by order_Date desc) as rn
+from orders
+)
+select customer_id from cte
+where status='cancelled' and rn=1
+Correct. ✅
+
+Output grain: one row per qualifying customer ✅
+Pattern: latest row per customer + apply condition on that row ✅
+Function choice: ROW_NUMBER() is correct because we need the single latest row ✅
+SQL: correct ✅
+Your query:
+
+WITH cte AS (
+    SELECT
+        status,
+        customer_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_date DESC
+        ) AS rn
+    FROM Orders
+)
+SELECT customer_id
+FROM cte
+WHERE status = 'cancelled'
+  AND rn = 1;
+
+Pattern status
+First/last row + condition → Clear
+
+Revision Q2/8
+Table: Sales
+
+sale_id
+product_id
+sale_date
+amount
+Return:
+
+product_id
+sale_date
+amount
+for all sales rows that happened on each product’s latest sale date.
+
+A product can have multiple sales on the same latest date, and all of them must be returned.
+
+Give me:
+
+Output grain → one-line approach → SQL
+
+output grain - one or more row per sales satsifying the condition
+appraoch - we need latest sales and use dense rank 
+
+with cte as (
+select product_id, sale_date,amount,dense_rank() over (order by product_id order by sale_date desc) as rn
+from sales
+)
+select product_id , sale_date,amount
+from cte where rn=1
+Conceptually correct. ✅ You picked the right pattern: because all sales tied on the latest date must be returned, DENSE_RANK() is appropriate.
+
+The only issue is the window syntax. You wrote:
+
+DENSE_RANK() OVER (
+    ORDER BY product_id
+    ORDER BY sale_date DESC
+)
+
+You need PARTITION BY product_id:
+
+WITH cte AS (
+    SELECT
+        product_id,
+        sale_date,
+        amount,
+        DENSE_RANK() OVER (
+            PARTITION BY product_id
+            ORDER BY sale_date DESC
+        ) AS rn
+    FROM Sales
+)
+SELECT
+    product_id,
+    sale_date,
+    amount
+FROM cte
+WHERE rn = 1;
+
+And your output grain is better stated as:
+
+One row per sale record occurring on that product’s latest sale date.
+
+Pattern status
+All tied latest rows → Clear
+
+Memory line:
+
+Need all rows tied on earliest/latest date → RANK() or DENSE_RANK().
+
+Revision Q3/8
+Table: Logins
+
+user_id
+login_date
+Return each user_id who logged in on 3 consecutive calendar days at least once.
+
+Return each qualifying user only once.
+
+Give me:
+
+Output grain → one-line approach → SQL
+
+output grain - one record per user who satisfy the condition
+appraoch - we use the lag function and datediff to check for consecutive calendar day
+
+with cte as (
+select user_id , login_date,lag(login_date,1) over (partition by user_id order by login_date) as lag_1,lag(login_date,2) over (partition by user_id order by login_date) as lag_2
+from logins
+)
+select user_id from cte
+where datediff(login_date,lag_1)=1 and datediff(lag_1,lag_2)=1
+Almost perfect. ✅ The consecutive-day logic itself is correct.
+
+Only one fix: because a user could have more than one qualifying 3-day streak, use DISTINCT in the final output.
+
+WITH cte AS (
+    SELECT
+        user_id,
+        login_date,
+        LAG(login_date, 1) OVER (
+            PARTITION BY user_id
+            ORDER BY login_date
+        ) AS lag_1,
+        LAG(login_date, 2) OVER (
+            PARTITION BY user_id
+            ORDER BY login_date
+        ) AS lag_2
+    FROM Logins
+)
+SELECT DISTINCT user_id
+FROM cte
+WHERE DATEDIFF(login_date, lag_1) = 1
+  AND DATEDIFF(lag_1, lag_2) = 1;
+
+So:
+
+Output grain: ✅
+Pattern recognition: ✅
+Exact date-gap logic: ✅
+Minor miss: DISTINCT
+Pattern status
+Consecutive calendar dates → Clear
+
+Memory line:
+
+3 consecutive dates → current-prev = 1 AND prev-prev2 = 1
+
+Ready for Revision Q4/8.
+
+ok
+Revision Q4/8
+Table: StudentCourse
+
+student_id
+course_id
+Table: RequiredCourse
+
+course_id
+Return every student_id who has completed all required courses.
+
+A student may have duplicate rows for the same course.
+
+Give me:
+
+Output grain → one-line approach → SQL
+
+output grain - one row per student satisfying condition
+approach - we count course per student and count of courses and return who satify condition using group by + having 
+
+select student_id , count(distinct course_id) as course_count
+from studentcourse
+group by student_id 
+having course_count=(select count(*) from requiredcourse)
+Correct. ✅
+
+You got the important part right:
+
+COUNT(DISTINCT course_id)
+
+That handles duplicate course rows correctly.
+
+A slightly safer version is:
+
+SELECT student_id
+FROM StudentCourse
+GROUP BY student_id
+HAVING COUNT(DISTINCT course_id) = (
+    SELECT COUNT(*)
+    FROM RequiredCourse
+);
+
+I’d avoid relying on the alias course_count inside HAVING, because some SQL dialects do not allow that consistently.
+
+Pattern status
+Has all required items → Clear
+
+Memory line:
+
+Group by entity → count distinct owned items → compare with total required items.
