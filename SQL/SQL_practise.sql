@@ -2110,3 +2110,155 @@ You used a window to derive each employee’s own annual salary, then compared m
 
 We’ll include this in the next revision set before moving much further.
 
+output grain - one record per employee satisfying the condition
+comparison - salary compared with aggregate / avg salary of their department
+pattern - we use a subquery to just say salary > avg(salary) using the window function we can also do using subquery
+Yes — your reasoning is correct. ✅
+
+Sharper version:
+
+Output grain: one row per employee who qualifies
+Comparison: employee salary vs average salary of that employee’s own department
+Pattern: row value vs group aggregate
+
+Two valid implementation patterns:
+
+Window aggregate: AVG(salary) OVER (PARTITION BY department_id)
+Correlated subquery: compare each employee to AVG(salary) for the same department
+For interviews, the window version is often cleaner because it preserves row-level detail while attaching the department average to every employee.
+
+So your pattern recognition here is clear.
+
+Now write the SQL.
+
+with cte as (
+select employee_id , salary , avg(salary) over (partition by department_id) as avg_sal
+from employees)
+select employee_id from cte
+where salary > avg_sal
+
+alternative 2 : 
+select employee_id ,salary from employees
+group by department_id 
+where salary > (select avg(salary) from employees)
+Your first solution is correct. ✅
+
+WITH cte AS (
+    SELECT
+        employee_id,
+        salary,
+        AVG(salary) OVER (
+            PARTITION BY department_id
+        ) AS avg_sal
+    FROM Employees
+)
+SELECT employee_id
+FROM cte
+WHERE salary > avg_sal;
+
+That matches the pattern perfectly:
+
+row value vs group aggregate → window aggregate
+
+Your second solution is not correct.
+
+SELECT employee_id, salary
+FROM Employees
+GROUP BY department_id
+WHERE salary > (SELECT AVG(salary) FROM Employees)
+
+There are two issues:
+
+WHERE comes before GROUP BY
+more importantly, (SELECT AVG(salary) FROM Employees) gives the company-wide average, not that employee’s department average
+The correct correlated-subquery version would be:
+
+SELECT
+    e.employee_id,
+    e.salary
+FROM Employees e
+WHERE e.salary > (
+    SELECT AVG(e2.salary)
+    FROM Employees e2
+    WHERE e2.department_id = e.department_id
+);
+
+Pattern takeaway
+Row vs its own group aggregate
+
+Window: AVG(...) OVER (PARTITION BY group)
+Correlated subquery: aggregate filtered to the outer row’s group
+Don’t compare against a global aggregate unless the question asks for company-wide/global comparison
+I’d mark this pattern Clear.
+
+ahh yeah self join
+Yes — conceptually it’s the same “compare a row to its own group” idea.
+
+A correlated subquery is often easier than a self-join for this:
+
+SELECT e.employee_id, e.salary
+FROM Employees e
+WHERE e.salary > (
+    SELECT AVG(e2.salary)
+    FROM Employees e2
+    WHERE e2.department_id = e.department_id
+);
+
+A true self-join approach is also possible, but for an average comparison it usually becomes more verbose because you still need to aggregate the joined rows.
+
+So for interviews, remember:
+
+Row vs own-group aggregate → window function first choice, correlated subquery second choice.
+
+ok
+Question 3/3 — New interview-style pattern
+Table: Orders
+
+order_id
+customer_id
+order_date
+amount
+Return the customers whose latest order amount is greater than their own average order amount.
+
+For now, do not write SQL.
+
+Give me only:
+
+Output grain → what exactly is being compared → pattern
+
+output grain - one record per customer satisfying the condtioin
+comparison - customers order amount vs customers own avg amount
+pattern - same we can do using row number and avg window function
+Yes — correct. ✅
+
+Sharper framing:
+
+Output grain: one row per qualifying customer
+Comparison: latest order amount vs that same customer’s average order amount
+Pattern: latest-row identification + group-level aggregate on the same entity
+
+The cleanest way is to calculate both in one CTE:
+
+WITH cte AS (
+    SELECT
+        customer_id,
+        amount,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_date DESC
+        ) AS rn,
+        AVG(amount) OVER (
+            PARTITION BY customer_id
+        ) AS avg_amount
+    FROM Orders
+)
+SELECT customer_id
+FROM cte
+WHERE rn = 1
+  AND amount > avg_amount;
+
+This is a useful combined pattern because it mixes two ideas:
+
+latest row per entity + row vs own-group aggregate
+
+That’s exactly the kind of compound logic product-company DE interviews can test.
