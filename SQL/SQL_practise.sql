@@ -2262,3 +2262,202 @@ This is a useful combined pattern because it mixes two ideas:
 latest row per entity + row vs own-group aggregate
 
 That’s exactly the kind of compound logic product-company DE interviews can test.
+
+
+############################ 10/05/2026 #############
+with cte c as (
+select c.account_id,c.status,c.effective_date, row_number() over (partition by c.account_id order by c.effective_date desc) as rn
+from accountstatus
+where effective_date < = '2026-09-30'
+)
+with cte_2 c2 as (
+select c.account_id from accountstatus
+)
+select account_id , coalesce(status,'unknown') as status
+from cte left join cte 2 on 
+c.account_id=c2.account_id and rn=1
+Pattern recognition was correct, but the SQL assembly still needs work. This is exactly why this pattern is still in the revisit bank.
+
+Main fixes:
+
+CTE syntax is WITH cte AS (...), not WITH cte c AS (...).
+You define multiple CTEs in one WITH, separated by commas.
+cte_2 should contain distinct account IDs.
+Most importantly, the all-accounts CTE must be on the left side of the LEFT JOIN so accounts with no valid historical status are preserved.
+rn = 1 belongs to the ranked CTE side of the join.
+Correct version:
+
+WITH cte AS (
+    SELECT
+        account_id,
+        status,
+        effective_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY account_id
+            ORDER BY effective_date DESC
+        ) AS rn
+    FROM AccountStatus
+    WHERE effective_date <= '2026-09-30'
+),
+cte_2 AS (
+    SELECT DISTINCT account_id
+    FROM AccountStatus
+)
+SELECT
+    c2.account_id,
+    COALESCE(c.status, 'Unknown') AS status
+FROM cte_2 c2
+LEFT JOIN cte c
+    ON c2.account_id = c.account_id
+   AND c.rn = 1;
+
+Assessment
+Pattern identification: ✅
+<= target date: ✅
+ROW_NUMBER() + descending date: ✅
+Default fallback idea: ✅
+Preserve-all-entities join direction: ❌
+CTE syntax/assembly: ❌
+So I’d mark this pattern Improving, not Stable yet.
+
+The key thing to drill is:
+
+The population you must preserve goes on the LEFT side of the LEFT JOIN.
+
+Let’s do another mixed question next, not another as-of-date one immediately.
+
+ok
+Mixed Pattern Drill — Q2
+Table: EmployeeSalary
+
+employee_id
+department_id
+salary
+Return the employees whose salary is greater than every employee in department 20.
+
+For now, do not write SQL.
+
+Give me only:
+
+Output grain → what exactly is being compared → pattern
+
+we will do 10 questions today u decide which but we will stop there
+Got it. Exactly 10 questions today, then we stop.
+
+I’ll choose a mixed set from your current pattern bank so we test recognition, not memorization. We’ll keep the same flow:
+
+Output grain → comparison/relationship → pattern
+then you write SQL only after I validate the reasoning.
+
+We’re currently on Q2/10.
+
+Q2/10
+Table: EmployeeSalary
+
+employee_id
+department_id
+salary
+Return the employees whose salary is greater than every employee in department 20.
+
+For now, do not write SQL.
+
+Give me only:
+
+Output grain → what exactly is being compared → pattern
+
+output grain - one record per employee satisfying the condtiion
+comparison - salary of employee against salary of every employee in dept 20
+pattern - using max and subquery
+Correct. ✅
+
+Sharper framing:
+
+Output grain: one row per employee who qualifies
+Comparison: each employee’s salary vs the set of salaries in department 20
+Pattern: ALL / every one → compare against the maximum salary in that set
+So the clean mental shortcut is:
+
+greater than every employee in dept 20
+= salary > MAX(salary) of dept 20
+
+Your pattern recognition is correct.
+
+Now write the SQL.
+
+select employee_id , salary from employeesalary
+where department_id=20 
+and salary > (select max(salary) from employeesalary group by department_id )
+Close, but there are two logic mistakes.
+
+Your pattern recognition was right: greater than every employee in department 20 → compare against the maximum salary in department 20.
+
+The problems are:
+
+This outer filter is wrong:
+WHERE department_id = 20
+
+That restricts the result to employees inside department 20. The question asks for employees whose salary is greater than everyone in department 20, regardless of their own department.
+
+Your subquery:
+SELECT MAX(salary)
+FROM EmployeeSalary
+GROUP BY department_id
+
+returns one maximum per department, not specifically department 20. We need one scalar value.
+
+Correct query:
+
+SELECT
+    employee_id,
+    salary
+FROM EmployeeSalary
+WHERE salary > (
+    SELECT MAX(salary)
+    FROM EmployeeSalary
+    WHERE department_id = 20
+);
+
+Assessment
+Output grain: ✅
+Pattern recognition (ALL → MAX): ✅
+Population being compared against: ⚠️ implementation mistake
+Subquery scope: ❌
+Memory rule:
+
+The filter that defines the comparison population belongs inside the subquery.
+
+So this pattern is Improving, not fully stable yet.
+
+Ready for Q3/10.
+
+but u only said greater than every employee in dept 20
+Yes — exactly. The phrase:
+
+“employees whose salary is greater than every employee in department 20”
+
+means:
+
+take all employees as candidates, and compare each candidate’s salary against the salaries of employees in department 20.
+
+So department_id = 20 defines the comparison set, not the output set.
+
+That’s why it belongs inside the subquery:
+
+WHERE salary > (
+    SELECT MAX(salary)
+    FROM EmployeeSalary
+    WHERE department_id = 20
+)
+
+If I had said:
+
+“employees in department 20 whose salary is greater than every other employee in department 20”
+
+then the outer rows would also be department 20 — but that becomes a different question.
+
+So your confusion is valid; the important lesson is:
+
+Who are we returning? vs Who are we comparing against?
+
+Those can be different populations.
+
