@@ -2739,3 +2739,131 @@ If the question says “average of customer totals,” first create the customer
 Pattern status
 Aggregate of aggregates / grain transition → Needs Revisit
 This is a good one to keep in the revisit bank.
+
+Table: ContestRegistrations
+contest_id
+user_id
+
+Table: Users
+user_id
+
+Return each contest_id whose registration percentage is greater than the average registration percentage across all contests.
+For now, do not write SQL.
+Give me only:
+Output grain → what exactly is being compared → pattern
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per contest id satisfying the condtiion
+cmop - id of contest with avg % of registration across all
+pattern - find total contest then avg registration % and then compare boht
+
+
+
+
+
+
+
+
+
+
+
+
+Close, but the comparison needs to be stated more precisely.
+- Output grain: one row per qualifying contest_id ✅
+- Comparison: each contest’s registration percentage vs the average of the registration percentages of all contests
+- Pattern: this is a two-stage aggregate:
+  1. calculate each contest’s percentage = registered users in contest / total users overall
+  2. calculate the average of those contest-level percentages
+  3. compare each contest percentage against that average
+The key thing is: do not average raw registration rows. First get one percentage per contest, then average those percentages.
+So the pattern is:
+group-level metric → global average of that metric → compare
+
+Your reasoning is close, but I’d tighten it to that before writing SQL.
+Now write the SQL.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+with cte as (
+Select c.contest_id,count(c.user_id) as registerd_user ,count(u.user_id) as total_users
+from contestregistrations c join users u on 
+c.user_id=u.user_id
+group by c.contest_id
+)
+, cte_2 as (
+select c.contest_id , (registered_user/total_users) as contest_reg_perc , avg(contest_reg_perc) as reg
+from cte
+)
+select c.contest_id 
+from cte_2
+where contest_reg_perc > reg
+
+
+
+
+
+
+
+
+
+
+
+
+You’ve got the right high-level structure, but the denominator and second-stage average are still off.
+The biggest issue is here:
+COUNT(u.user_id) AS total_users
+
+Because you joined Users to registrations and grouped by contest, that count becomes the number of users registered in that contest, not the total number of users overall.
+For each contest, the denominator should be the same global value:
+(SELECT COUNT(*) FROM Users)
+
+Then in the next step, you need the average of the contest percentages, so use a window over the already-calculated contest-level percentages.
+A clean version is:
+WITH cte AS (
+    SELECT
+        contest_id,
+        COUNT(user_id) * 100.0 /
+        (SELECT COUNT(*) FROM Users) AS contest_reg_perc
+    FROM ContestRegistrations
+    GROUP BY contest_id
+),
+cte_2 AS (
+    SELECT
+        contest_id,
+        contest_reg_perc,
+        AVG(contest_reg_perc) OVER () AS avg_reg_perc
+    FROM cte
+)
+SELECT contest_id
+FROM cte_2
+WHERE contest_reg_perc > avg_reg_perc;
+
+Your exact mistakes were:
+- Global denominator became contest-level because of the join
+- tried AVG(contest_reg_perc) in the same select where contest_reg_perc was being created
+- needed AVG(...) OVER() because you want to preserve one row per contest while attaching the global average
+Pattern status
+Grouped metric → global average of grouped metric → compare = Improving
+Memory rule:
+First create one metric per group. Then calculate the overall average across those group-level metrics.
