@@ -2461,3 +2461,281 @@ Who are we returning? vs Who are we comparing against?
 
 Those can be different populations.
 
+Table: Orders
+order_id
+customer_id
+order_date
+amount
+
+Return the customers whose latest order amount is greater than their own average order amount.
+For now, do not write SQL.
+Give me only:
+Output grain → what exactly is being compared → pattern
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per customer satisffying the condition
+comp - latest order value against their own avg order amount
+pattern - row number and filter condtiion
+
+
+
+
+
+
+
+
+
+
+
+
+Correct direction. ✅
+Sharper framing:
+- Output grain: one row per qualifying customer
+- Comparison: that customer’s latest order amount vs that same customer’s average order amount
+- Pattern: combine latest-row identification + own-group aggregate
+So the clean pattern is:
+ROW_NUMBER() to identify latest order  
+- AVG(amount) OVER (PARTITION BY customer_id) to attach each customer’s average
+- filter rn = 1 AND amount > avg_amount
+
+Your reasoning is good; just remember the second half of the pattern is not only “filter condition” — it is specifically row vs own-group aggregate.
+Now write the SQL.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+with cte as (
+select customer_id , order_id , order_Date , amount , row_number() over (partition by customer_id order by order_date desc ) as rn , avg(amount) over (partition by customer_id ) as avg_amount
+from orders
+)
+select customer_id , amount from cte
+where amount > avg_amount and rn=1
+
+
+
+
+
+
+
+
+
+
+
+
+Correct. ✅
+Your query matches the requirement cleanly:
+WITH cte AS (
+    SELECT
+        customer_id,
+        order_id,
+        order_date,
+        amount,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_date DESC
+        ) AS rn,
+        AVG(amount) OVER (
+            PARTITION BY customer_id
+        ) AS avg_amount
+    FROM Orders
+)
+SELECT
+    customer_id,
+    amount
+FROM cte
+WHERE rn = 1
+  AND amount > avg_amount;
+
+Assessment
+- Output grain: ✅
+- Latest-row logic: ✅
+- Own-group average: ✅
+- Combined pattern recognition: ✅
+- SQL: ✅
+Pattern status
+Latest row + own-group aggregate → Stable
+Memory line:
+Attach group metric with a window, identify target row with another window, then compare in the outer query.
+
+Ready for Q4/10.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+yes
+
+
+
+
+
+
+
+
+
+
+
+
+Q4/10
+Table: Payments
+payment_id
+customer_id
+payment_date
+amount
+
+Return the customers whose total payment amount in 2026 is greater than the average total payment amount across all customers in 2026.
+For now, do not write SQL.
+Give me only:
+Output grain → what exactly is being compared → pattern
+
+
+
+
+
+    
+
+
+
+
+
+
+
+output grain - one row per customer satisfying condition
+comp - customers total amount of 2026 greater than avg total payment for all customer in 2026
+pattern - we use windows function here to get total amount per customer in 2026 and avg for all customers and compare
+
+
+
+
+
+
+
+
+
+
+
+
+Your reasoning is mostly correct, but I want to tighten the pattern because this one has a subtle grain change.
+The comparison is:
+each customer’s 2026 total
+vs
+the average of those customer-level totals
+
+So the safest mental model is:
+first aggregate to one row per customer → then compare those customer totals against the average of customer totals
+
+A window function can absolutely be used, but only after you have customer-level totals.
+So the pattern is:
+group-level aggregate → aggregate over those grouped results
+
+This is slightly different from:
+row vs own-group aggregate
+
+because here both sides of the comparison are already customer-level aggregates.
+A clean approach is:
+filter 2026 → SUM(amount) per customer → AVG(total_amount) across customers → compare
+
+Your reasoning is accepted. Now write the SQL.
+
+
+
+
+
+    
+
+
+
+
+
+
+
+with cte as (
+select customer_id , sum(amount) as total_amount , avg(amount) as avg_amount
+from payments
+where year(payment_date)=2026
+group by customer_id
+)
+select customer_id from cte
+where total_amount > avg_amount
+
+
+
+
+
+
+
+
+
+
+
+
+Close — but the second aggregation level is wrong.
+You correctly got:
+SUM(amount) AS total_amount
+
+per customer.
+But this:
+AVG(amount) AS avg_amount
+
+calculates the average individual payment for that customer, not the average customer total across all customers.
+The requirement is:
+customer 2026 total
+vs
+average of all customers’ 2026 totals
+
+So you need to first create customer totals, then average those totals:
+WITH cte AS (
+    SELECT
+        customer_id,
+        SUM(amount) AS total_amount
+    FROM Payments
+    WHERE YEAR(payment_date) = 2026
+    GROUP BY customer_id
+),
+cte2 AS (
+    SELECT
+        customer_id,
+        total_amount,
+        AVG(total_amount) OVER () AS avg_customer_total
+    FROM cte
+)
+SELECT customer_id
+FROM cte2
+WHERE total_amount > avg_customer_total;
+
+Exact mistake
+You averaged at the payment-row level instead of the customer-total level.
+Memory rule:
+If the question says “average of customer totals,” first create the customer totals, then average those totals.
+
+Pattern status
+Aggregate of aggregates / grain transition → Needs Revisit
+This is a good one to keep in the revisit bank.
