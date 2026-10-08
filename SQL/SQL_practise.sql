@@ -2867,3 +2867,116 @@ Pattern status
 Grouped metric → global average of grouped metric → compare = Improving
 Memory rule:
 First create one metric per group. Then calculate the overall average across those group-level metrics.
+
+
+
+###################################
+10/09/2026
+
+raw grain - one row per order per customer
+intermediate grain - one row with first order amount per customer + latest order amount attached
+comparison - first order amount > latest order amount 
+pattern - we find the first order per customer using rank / dense rank (in case cust placed more than one but assuming it will be one order only use rank)
+then we use row number to find the the latest order amount and then compare the first order amount > latest order amount 
+
+one other alternative i was thinking is we use row number for both the first order and latest order just change the order by from asc to desc for order_date col
+Your second alternative is the cleaner one, and your reasoning is almost there.
+
+For this question, because we assume each customer has exactly one first order and one latest order, use ROW_NUMBER() for both:
+
+ascending order_date → first order
+descending order_date → latest order
+I would not use RANK()/DENSE_RANK() here unless the problem says multiple rows on the same earliest/latest date should all be kept.
+
+Your grain reasoning is good, but I’d sharpen the intermediate grain:
+
+Raw grain: one row per order
+Intermediate grain: each order row carries both a first-order rank and latest-order rank for that customer
+Final grain: one row per qualifying customer
+
+Then the pattern is:
+
+first row vs latest row within the same entity
+
+A neat way to think about it is:
+
+rn_first  = ROW_NUMBER() ... ORDER BY order_date ASC
+rn_latest = ROW_NUMBER() ... ORDER BY order_date DESC
+Then compare the amount from rn_first = 1 with the amount from rn_latest = 1.
+
+So yes — your instinct that “same function, just flip ASC/DESC” is the right one here.
+
+cool
+Q4/5
+Table: EmployeeSalary
+
+employee_id
+department_id
+salary
+Return the employees whose salary is greater than the average salary of their department but less than the maximum salary in their department.
+
+For now, give me only:
+
+Raw grain → Intermediate grain(s) → Final grain → Comparison → Pattern
+
+raw grain - one row per employee 
+intermediate grain - salary of employee + avg salary of dept + max salary of dept
+final grain - one row per employee satisfying the condition
+comp - salary > avg_sal_dept and sal<max_sal_dept
+pattern - we use window function here to first find the avg salary per dept and max sal per dept and simply compare sal > avg_sal and sal < max_sal of their dept using partition by dept
+Correct. ✅
+
+This is exactly the right reasoning structure:
+
+Raw grain: one row per employee
+Intermediate grain: keep employee row and attach department-level AVG(salary) and MAX(salary)
+Final grain: one row per qualifying employee
+Comparison: salary > avg_dept_salary and salary < max_dept_salary
+Pattern: row vs own-group aggregates, using window functions partitioned by department
+This is a very good example of when window functions are the natural fit because you want to preserve the employee row while attaching multiple group metrics.
+
+Q5/5
+Table: Orders
+
+order_id
+customer_id
+order_date
+amount
+Return the customers whose total order amount in their latest month is greater than their average monthly order amount across all months.
+
+For now, give me only:
+
+Raw grain → Intermediate grain(s) → Final grain → Comparison → Pattern
+
+raw grain - one row per customer per order
+intermediate grain - we calculate total order amount per customer for latest month and attach avg order amount across all months at customer level
+final grain - one row per customer satisfying the condition
+comp - total_amount_latest_month > avg(total_amount_months)
+pattern - first calculate total amount for latest month using row nnumber then use window function to calculate avg amount across all months per customer then compare both
+Your comparison is correct, but the pattern needs one important correction.
+
+You should not use ROW_NUMBER() on individual orders to find the latest month. The question is at a monthly grain, so you first need to create one row per:
+
+customer_id + month
+
+with that month’s total order amount.
+
+Then from those monthly rows:
+
+identify the latest month per customer
+calculate AVG(monthly_total) across all months for that customer
+compare latest-month total vs average monthly total
+So the correct reasoning is:
+
+Raw grain: one row per order
+Intermediate grain 1: one row per customer + month with monthly_total
+Intermediate grain 2: monthly rows with latest-month rank + customer-level average monthly total attached
+Final grain: one row per qualifying customer
+Comparison: latest_month_total > avg(monthly_total)
+Pattern: pre-aggregate to month grain → latest row within monthly grain + own-group aggregate
+
+The key correction is:
+
+When the requirement says “latest month,” first build monthly rows. Don’t rank raw orders.
+
+This is exactly the kind of grain-identification improvement we’re trying to build.
