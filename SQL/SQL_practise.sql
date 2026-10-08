@@ -2980,3 +2980,199 @@ The key correction is:
 When the requirement says “latest month,” first build monthly rows. Don’t rank raw orders.
 
 This is exactly the kind of grain-identification improvement we’re trying to build.
+
+raw grain - one row per customer per order
+intermediate grain - one row per customer with total order amount + attached avg (total order amount)
+final grain - one row per customer satisfying the condition
+pattern - first find total order amount per customer then use avg(total order amount) over () as avg order amount then compare boht
+
+sql : 
+with cte as (
+select customer_id , sum(amount) as total_order_amount
+from orders
+group by customer_id
+),
+cte2 as (
+select avg(total_order_amount) as avg_cust_amount from cte
+)
+select customer_id from cte2
+where total_order_amount > avg_cust_amount
+Your reasoning is correct, but the SQL has one grain/projection mistake.
+
+The problem is here:
+
+cte2 AS (
+    SELECT AVG(total_order_amount) AS avg_cust_amount
+    FROM cte
+)
+
+cte2 now has only one row and only one column: avg_cust_amount.
+
+So this final query cannot access:
+
+customer_id
+total_order_amount
+
+because they are not present in cte2.
+
+The cleanest fix is to keep the customer-level rows and attach the overall average with a window:
+
+WITH cte AS (
+    SELECT
+        customer_id,
+        SUM(amount) AS total_order_amount
+    FROM Orders
+    GROUP BY customer_id
+),
+cte2 AS (
+    SELECT
+        customer_id,
+        total_order_amount,
+        AVG(total_order_amount) OVER () AS avg_cust_amount
+    FROM cte
+)
+SELECT customer_id
+FROM cte2
+WHERE total_order_amount > avg_cust_amount;
+
+Assessment
+Raw grain: ✅
+Intermediate grain: ✅
+Final grain: ✅
+Pattern: ✅
+SQL logic: ✅
+CTE projection: ❌
+The key lesson:
+
+If you still need row-level/customer-level columns after calculating a global metric, use a window to attach the global metric instead of collapsing to one row.
+
+So this was a query construction miss, not a logic-building miss.
+
+SQL Q2/5
+Transactions
+transaction_id
+account_id
+transaction_date
+amount
+
+Return the accounts whose latest transaction amount is greater than their own average transaction amount.
+Write the SQL only.
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+raw grain - one row per accoutn
+intermediate grain - one row per account with latest transaction amount + thier own avg transaction amount attached
+final grain - one row per account satisfying the condition of latest_transaction_amount > avg_transaction_amount
+pattern - use row numberto find the latest trnsaction amou t anf thn avg trnsc amount and compare
+
+sql : 
+with cte as (
+select account_id , amount , row_number() over (partition by account_id order by transaction_date desc) as latest_amt,avg(amount) over (partition by account_id) as avg_trans_amount
+from transactions
+)
+select account_id from cte
+where latest_amt > avg_trans_amount
+
+
+
+
+
+
+
+
+
+
+
+
+Your reasoning is correct, but there’s one SQL mistake:
+ROW_NUMBER() ... AS latest_amt
+
+That alias is the rank, not the latest transaction amount. So this comparison:
+latest_amt > avg_trans_amount
+
+is comparing 1,2,3... against an average amount.
+You want:
+rn = 1
+AND amount > avg_trans_amount
+
+Correct version:
+WITH cte AS (
+    SELECT
+        account_id,
+        amount,
+        ROW_NUMBER() OVER (
+            PARTITION BY account_id
+            ORDER BY transaction_date DESC
+        ) AS rn,
+        AVG(amount) OVER (
+            PARTITION BY account_id
+        ) AS avg_trans_amount
+    FROM Transactions
+)
+SELECT account_id
+FROM cte
+WHERE rn = 1
+  AND amount > avg_trans_amount;
+
+Also, your grain wording can be slightly sharper:
+Raw grain: one row per transaction
+Intermediate grain: transaction rows with latest-row rank + account average attached
+Final grain: one row per qualifying account
+
+Assessment
+- Logic building: ✅
+- Grain thinking: mostly ✅
+- SQL construction: ⚠️ alias meaning confused
+- Pattern recognition: ✅
+Key rule:
+ROW_NUMBER() identifies the row; it does not become the row’s value.
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+my bad i was in hurry
+
+
+
+
+
+
+
+
+
+
+
+
+No issue — that was a hurry mistake, not a reasoning mistake.
+The important part is you had the right structure:
+latest row per account + own-account average → compare the latest row’s amount
+
+Just keep the alias semantics clean:
+rn = row position
+amount = transaction value
+
+Let’s continue with SQL Q3/5.
