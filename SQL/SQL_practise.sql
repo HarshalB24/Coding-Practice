@@ -3176,3 +3176,418 @@ rn = row position
 amount = transaction value
 
 Let’s continue with SQL Q3/5.
+
+SQL Q3/5
+Orders
+order_id
+customer_id
+order_date
+amount
+
+Return the customers whose first order amount is greater than their latest order amount.
+Write the SQL only.
+
+Soln - 
+with cte as (
+select customer_id , order_date , amount , row_number () over (partition by customer_id order by order_date) as rn,
+row_number() over (partition by customer_id order by order_date desc) as lat_rn
+from orders
+),
+cust_amount as (
+select customer_id , max(case when rn=1 then amount end) as first_amount ,
+max(case when lat_rn=1 then amount end) as lat_amount
+from cte
+group by customer_id
+)
+select customer_id 
+from cust_amount
+where first_amount > lat_amount
+
+
+SQL Q4/5 — Reasoning + SQL
+Table: EmployeeSalary
+Column	Type
+employee_id	INT
+department_id	INT
+salary	INT
+Question: Return the employees whose salary is greater than the average salary of their department but less than the maximum salary in that department.
+Give me:
+Raw grain → Intermediate grain → Final grain → Comparison → Pattern → SQL
+You already identified the correct reasoning for this question earlier. Now let's see whether you can translate it into SQL independently.
+I'll assess your query without giving hints or the solution beforehand.
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+raw grain - one row per employee with sal
+intermediate grain - one row per employee with salary + dept avg salary attached and max salary of dept
+final grain - one row per emp satisfying condition 
+comp - salary > avg_dept_sal and sal<max_dept_sal
+pattern - we use window function to get avg and max sal of dept and comp 
+
+sql : 
+with cte as (
+select employee_id , salary , avg(salary) over (partition by department_id) as avg_dept_Sal , 
+max(salary) over (partition by department_id) as max_dept_sal
+from employeesalary
+)
+select employee_id 
+from cte 
+where salary>avg_dept_sal and salary < max_dept_sal
+
+
+
+
+
+
+
+
+
+
+
+
+
+Correct — clean solve! ✅ Your reasoning and SQL both match the requirement.
+Assessment
+Area	Result
+Raw grain	✅ One row per employee
+Intermediate grain	✅ Employee row + department AVG and MAX
+Final grain	✅ One row per qualifying employee
+Comparison	✅ Both conditions correct
+Pattern recognition	✅ Window aggregates
+SQL implementation	✅ Correct
+You correctly used:
+AVG(salary) OVER (PARTITION BY department_id)
+MAX(salary) OVER (PARTITION BY department_id)
+
+
+These attach department-level metrics while preserving individual employee rows.
+Pattern status: Clear — clean independent solve.
+Memory rule:
+Compare a row against multiple metrics from its own group → calculate window aggregates, then filter in the outer query.
+
+
+SQL Q5/5 — Final question
+Table: Orders
+Column	Type
+order_id	INT
+customer_id	INT
+order_date	DATE
+amount	DECIMAL
+Return the customers whose total order amount in their latest month is greater than their average monthly order amount across all months.
+Give me:
+Raw grain → Intermediate grain(s) → Final grain → Comparison → Pattern → SQL
+No hints this time.
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+raw grain - one row per customer per order
+intemediate grain - one row per customer per order at monthly level + avg monthly order amoutn attached
+final grain - one row per customer satisgying the condition
+comp - total monthly amount > avg monthyly orrder amount
+pattern - use group by + avg directly + use row_number
+
+sql : 
+with cte as (
+select customer_id , sum(amount) as total_order_amount , month(order_date) as monthly
+from orders
+group by customer_id , month(order_date),
+cte2 as (
+select rn , total_order_amount , customer_id , monthly,avg(total_order_amount) as avg_monthly_amnt , row_number() over (partition by customer_id order by monthly desc) as rn 
+from cte)
+select customer_id from cte2
+where rn=1 and total_order_amount > avg_monthly_amnt
+
+
+
+
+
+
+
+
+
+
+
+
+
+You're close — and importantly, you identified the correct grain transition this time. ✅ But your SQL still has a few mistakes in the second CTE.
+Assessment
+Area	Result
+Raw grain	✅ Correct
+Intermediate grain	✅ Customer + month, but needs clearer definition
+Final grain	✅ Correct
+Comparison	✅ Correct
+Pattern recognition	✅ Mostly correct
+SQL construction	❌ Needs correction
+What went wrong?
+1. You're grouping by month number, not year + month.
+MONTH(order_date)
+
+
+This combines January 2025 and January 2026 into the same group.
+Use DATE_FORMAT(order_date, '%Y-%m') in MySQL.
+2. Your second CTE has an incorrect average.
+You wrote:
+AVG(total_order_amount) AS avg_monthly_amnt
+
+
+But you need to preserve each customer-month row while attaching that customer's average monthly total.
+So use:
+AVG(total_order_amount) OVER (
+    PARTITION BY customer_id
+)
+
+
+3. You have SQL construction issues.
+- Missing closing ) after the first CTE.
+- rn is selected before it is defined.
+- The second CTE needs to preserve monthly rows and attach both window calculations.
+Correct SQL
+WITH monthly_orders AS (
+    SELECT
+        customer_id,
+        DATE_FORMAT(order_date, '%Y-%m') AS order_month,
+        SUM(amount) AS monthly_total
+    FROM Orders
+    GROUP BY
+        customer_id,
+        DATE_FORMAT(order_date, '%Y-%m')
+),
+monthly_metrics AS (
+    SELECT
+        customer_id,
+        order_month,
+        monthly_total,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_month DESC
+        ) AS rn,
+        AVG(monthly_total) OVER (
+            PARTITION BY customer_id
+        ) AS avg_monthly_total
+    FROM monthly_orders
+)
+SELECT customer_id
+FROM monthly_metrics
+WHERE rn = 1
+  AND monthly_total > avg_monthly_total;
+
+
+The important learning
+Your transformation should be:
+Raw orders
+One row per order
+
+Monthly totals
+One row per customer + year-month
+
+Attach monthly metrics
+Latest-month rank + customer average monthly total
+
+Filter qualifying customers
+rn = 1 AND monthly_total > avg_monthly_total
+
+
+Pattern status: Improving, but needs reinforcement
+You are now identifying the intermediate grain correctly, which is progress. The remaining gap is translating that grain into SQL without accidentally collapsing or mixing levels.
+I want us to revisit this pattern later with a different table and requirement, rather than immediately repeat the same query.
+That completes our 5 reasoning + SQL questions.
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+lets do one more of this pattern to make it clear
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reinforcement Q5B — Monthly Grain + Window Aggregation
+Table: Transactions
+Column	Type
+transaction_id	INT
+account_id	INT
+transaction_date	DATE
+amount	DECIMAL
+Question:
+Return the account_id of accounts whose total transaction amount in their earliest month is less than their average monthly transaction amount across all months.
+Important conditions:
+- An account can have multiple transactions in the same month.
+- Transactions can span multiple years.
+- Only months containing transactions should be considered when calculating the average.
+- Return each qualifying account once.
+Give me:
+Raw grain → Intermediate grain(s) → Final grain → Comparison → Pattern → SQL
+No hints or solution yet. I want to see whether you can independently apply the monthly-grain logic from the previous question.
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+raw grain - one row per account id 
+intermediate grain - one row per account id with total transaction amount at monthly level + avg monthly transaction attached
+final grain - one row per account satisfying the condition
+comparison - monthly total > avg_monthly_amonth
+pattern - we use row number to find the total transaction in earliest month and then avg () over () to find avg transaction per account and the comapre both 
+
+sql : 
+with cte as (
+Select account_id , sum(amount) as total_amnt,date_format(transation_date,'%Y-%m') as order_month
+from transactions
+group by account_id , date_format(transation_date,'%Y-%m')
+),cte2 as (
+select total_amnt,account_id , avg(total_amnt) over (partition by account_id order by order_month ) as avg_mnthly_total,row_number() over (partition by account_id order by order_month) as rn
+)
+select account_id 
+from cte2
+where rn=1 and total_amnt < avg_mnthly_total
+
+
+
+
+
+
+
+
+
+
+
+
+
+You're getting closer. ✅ Your monthly aggregation is correct, but the second CTE still has a critical window-function mistake.
+More importantly, your attempt shows exactly where your reasoning breaks when translating the intermediate grain into SQL.
+Assessment
+Area	Result
+Raw grain	⚠️ One row per transaction, not account
+Intermediate grain	✅ Account + year-month totals
+Final grain	✅ One row per qualifying account
+Comparison	⚠️ You wrote > in reasoning; question asks <
+Monthly aggregation	✅ Correct
+Earliest-month identification	✅ Correct
+Average monthly total	❌ Incorrect window definition
+SQL construction	❌ Missing FROM cte
+Your main mistake
+You wrote:
+AVG(total_amnt) OVER (
+    PARTITION BY account_id
+    ORDER BY order_month
+) AS avg_mnthly_total
+
+
+Adding ORDER BY changes the meaning of this window calculation.
+In MySQL, the default frame becomes a running window ending at the current row.
+So instead of calculating the average across all months for an account, you're calculating a cumulative average up to that month.
+Example: Monthly totals for account 101
+Month	Monthly total	Running avg	All-month avg
+Jan	100	100	200
+Feb	200	150	200
+Mar	300	200	200
+
+For the earliest month (January), your running average would be 100, so the condition 100 < 100 is false. But the correct all-month average is 200, and 100 < 200 is true.
+Correct SQL
+WITH monthly_totals AS (
+    SELECT
+        account_id,
+        DATE_FORMAT(transaction_date, '%Y-%m') AS order_month,
+        SUM(amount) AS total_amnt
+    FROM Transactions
+    GROUP BY
+        account_id,
+        DATE_FORMAT(transaction_date, '%Y-%m')
+),
+monthly_metrics AS (
+    SELECT
+        account_id,
+        order_month,
+        total_amnt,
+        AVG(total_amnt) OVER (
+            PARTITION BY account_id
+        ) AS avg_monthly_total,
+        ROW_NUMBER() OVER (
+            PARTITION BY account_id
+            ORDER BY order_month ASC
+        ) AS rn
+    FROM monthly_totals
+)
+SELECT account_id
+FROM monthly_metrics
+WHERE rn = 1
+  AND total_amnt < avg_monthly_total;
+
+
+Pattern to remember
+Need	Window
+Average across all months for an account	AVG(total_amnt) OVER (PARTITION BY account_id)
+Running average through each month	AVG(total_amnt) OVER (PARTITION BY account_id ORDER BY order_month)
+Earliest month	ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY order_month ASC)
+Latest month	ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY order_month DESC)
+Status: Improving — but not stable yet.
+Your biggest remaining gap is distinguishing whole-partition windows from ordered/running windows.
+Keep this exact warning in your revision bank:
+ORDER BY inside OVER() is not always harmless. Use it when sequence matters; omit it when calculating an aggregate across the entire group.
+
+One more thing: you correctly handled the year-month grouping this time, which was a mistake in your previous attempt. That is genuine progress.
