@@ -3591,3 +3591,190 @@ Keep this exact warning in your revision bank:
 ORDER BY inside OVER() is not always harmless. Use it when sequence matters; omit it when calculating an aggregate across the entire group.
 
 One more thing: you correctly handled the year-month grouping this time, which was a mistake in your previous attempt. That is genuine progress.
+
+
+10/13/2026 :
+Today's 5-question plan
+Q	Topic	What it tests
+1	Year-over-Year (YoY) growth	Revenue trends, yearly comparisons and growth percentages
+2	Month-over-Month (MoM) analysis	Monthly comparisons and business metrics
+3	Gaps and Islands	Identifying continuous periods and streaks
+4	Sessionization	Grouping user events into sessions based on inactivity
+5	Funnel analysis	Measuring conversion through multiple business stages
+I'll avoid giving pattern or function hints inside the actual questions. The goal is for you to select the approach independently.
+
+Q1/5 — Year-over-Year Revenue Growth
+Table: Orders
+order_id	product_id	order_date	revenue
+1	P1	2023-02-10	1000
+2	P1	2023-07-15	500
+3	P1	2024-03-20	2000
+4	P1	2024-08-05	1000
+5	P1	2025-01-10	4500
+6	P2	2024-04-12	800
+7	P2	2025-06-22	1200
+8	P3	2025-09-01	2000
+Requirement
+Calculate the year-over-year revenue growth percentage for every product and year.
+Conditions:
+- Aggregate revenue by product and calendar year.
+- Compare each year's revenue with the immediately preceding calendar year.
+- If there is no revenue record for the preceding calendar year, return NULL for growth.
+- If previous-year revenue is zero, return NULL.
+- Round growth percentage to 2 decimal places.
+- Order results by product_id, then year.
+Expected output
+product_id	year	yearly_revenue	yoy_growth_pct
+P1	2023	1500	NULL
+P1	2024	3000	100.00
+P1	2025	4500	50.00
+P2	2024	800	NULL
+P2	2025	1200	50.00
+P3	2025	2000	NULL
+Your turn:
+Raw grain → Intermediate grain(s) → Final grain → Requirement → Pattern → SQL
+No hints. I'll evaluate your reasoning and implementation separately, and then move to Q2/5.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+raw grain - one row per product revenue
+intemediate grain - finding yearly revenue and attaching the previous year's revenue 
+final grain - one row per product per year  revenue with yoy % and yearly revenue
+pattenr - we find the year revenue by jsut summing the revenue and since we need this year and previous year revenue i would use window function of sum and lag rather than using group by and then calculate the yoy
+
+with cte as (
+select product_id , year , sum(revenue) over (partition by product_id) as yearly_revenue
+from orders
+),prev_year_rev as (
+Select product_id , year ,yearly_revenue,lag(yearly_revenue,1)  over (partition by product_id order by year) as prev_year_rev
+from cte
+)
+Select product_id,year,yearly_revenue,round(yearly_revenue/prev_year_rev),2) as yoy_growth_pct
+from prev_year_rev
+order by product_id , year
+
+
+
+
+
+
+
+
+
+
+
+
+
+Good attempt. You've correctly identified that YoY analysis involves yearly revenue and previous-year revenue, and choosing LAG() is appropriate.
+However, your SQL has a few important mistakes. The biggest one is that you're applying a window function before establishing the correct yearly grain.
+Q1/5 — YoY Revenue Growth: Assessment
+Area	Assessment
+Raw grain	⚠️ One row per order, not per product revenue
+Intermediate grain	✅ Correctly identified product-year revenue
+Final grain	✅ One row per product per year
+Pattern recognition	✅ LAG() is appropriate
+Yearly aggregation	❌ Incorrect partitioning
+Previous-year comparison	⚠️ Missing consecutive-year validation
+YoY formula	❌ Incorrect calculation
+SQL syntax	❌ Invalid ROUND() and missing year extraction
+1. Your main mistake: using SUM OVER() at the wrong grain
+You wrote:
+SUM(revenue) OVER (PARTITION BY product_id) AS yearly_revenue
+
+
+This calculates total revenue across all years for each product, not revenue for each year.
+For P1, you would get 9,000 on every order row.
+You first need one row per product per calendar year.
+2. Your YoY formula is incorrect
+You wrote:
+ROUND(yearly_revenue / prev_year_rev), 2)
+
+
+That calculates a ratio, not percentage growth.
+The correct formula is:
+\[
+\text{YoY Growth \%}=\frac{\text{Current Year Revenue}-\text{Previous Year Revenue}}{\text{Previous Year Revenue}}\times100
+\]
+
+For P1 in 2024:
+\[
+\frac{3000-1500}{1500}\times100=100\%
+\]
+
+3. LAG does not necessarily mean previous calendar year
+Consider these records:
+Year	Revenue
+2023	1000
+2025	2000
+LAG() on 2025 gives 2023 revenue, even though 2024 is missing.
+Because our requirement specifically says immediately preceding calendar year, we must check that the previous row's year equals the current year minus one.
+Corrected SQL — MySQL 8+
+WITH yearly_sales AS (
+    SELECT
+        product_id,
+        YEAR(order_date) AS sales_year,
+        SUM(revenue) AS yearly_revenue
+    FROM Orders
+    GROUP BY product_id, YEAR(order_date)
+),
+prev_year_sales AS (
+    SELECT
+        product_id,
+        sales_year,
+        yearly_revenue,
+        LAG(sales_year) OVER (
+            PARTITION BY product_id
+            ORDER BY sales_year
+        ) AS prev_year,
+        LAG(yearly_revenue) OVER (
+            PARTITION BY product_id
+            ORDER BY sales_year
+        ) AS prev_year_rev
+    FROM yearly_sales
+)
+SELECT
+    product_id,
+    sales_year AS year,
+    yearly_revenue,
+    CASE
+        WHEN prev_year = sales_year - 1
+             AND prev_year_rev <> 0
+        THEN ROUND(
+            100.0 * (yearly_revenue - prev_year_rev)
+            / prev_year_rev,
+            2
+        )
+        ELSE NULL
+    END AS yoy_growth_pct
+FROM prev_year_sales
+ORDER BY product_id, sales_year;
+
+
+The grain transformation you should remember
+Raw grain: One row per order
+Product ID, order date, revenue
+
+Intermediate 1: One row per product per year
+SUM(revenue) GROUP BY product_id, year
+
+Intermediate 2: One row per product per year with prior-year values
+LAG(year) + LAG(yearly_revenue)
+
+Final: One row per product per year with YoY growth %
+
+
+Q1 verdict: You recognized the right tool but need to reinforce the sequence: aggregate to the required grain first, compare periods second, calculate the business metric third.
+This is the same grain-transition issue we've identified previously, so it's a priority for your practice.

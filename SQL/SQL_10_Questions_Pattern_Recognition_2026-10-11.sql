@@ -623,3 +623,275 @@ ORDER BY c.customer_id;
  Then practice a genuinely NEW set of product-company DE interview scenarios.
 ================================================================================
 */
+
+
+-- ============================================================================
+-- SQL INTERVIEW PRACTICE — ORIGINAL ATTEMPTS, CORRECTIONS & MISTAKE NOTES
+-- Session: 2026-10-13 | Dialect: MySQL 8+
+-- Topics: YoY Growth, MoM Growth, Gaps & Islands
+-- ============================================================================
+-- PURPOSE: Preserve my actual attempts and compare against working solutions.
+-- Original attempts are quoted verbatim as SQL comments (including typos).
+-- Corrected queries are below each attempt and are runnable when source tables
+-- exist. Each section can be run separately; CTE names are local to each query.
+-- ============================================================================
+
+-- ###########################################################################
+-- Q1: YEAR-OVER-YEAR REVENUE GROWTH
+-- ###########################################################################
+-- INPUT: Orders(order_id, product_id, order_date, revenue)
+-- REQUIREMENT: For each product and year with orders, show yearly revenue and
+-- YoY % growth versus the IMMEDIATELY PRECEDING CALENDAR YEAR. Missing year or
+-- previous revenue 0 -> NULL. Round percentage to 2 decimals.
+-- EXPECTED ROWS:
+-- P1 2023 1500 NULL
+-- P1 2024 3000 100.00
+-- P1 2025 4500 50.00
+-- P2 2024  800 NULL
+-- P2 2025 1200 50.00
+-- P3 2025 2000 NULL
+--
+-- MY ORIGINAL REASONING:
+-- Raw: one row per product revenue [should be one row per ORDER].
+-- Intermediate: yearly revenue + previous year's revenue [good].
+-- Final: one row per product per year with yearly revenue and YoY % [good].
+-- Pattern: SUM window + LAG, instead of GROUP BY [wrong order of operations].
+--
+-- MY ORIGINAL SQL (VERBATIM, COMMENTED OUT):
+-- with cte as (
+-- select product_id , year , sum(revenue) over (partition by product_id) as yearly_revenue
+-- from orders
+-- ),prev_year_rev as (
+-- Select product_id , year ,yearly_revenue,lag(yearly_revenue,1)  over (partition by product_id order by year) as prev_year_rev
+-- from cte
+-- )
+-- Select product_id,year,yearly_revenue,round(yearly_revenue/prev_year_rev),2) as yoy_growth_pct
+-- from prev_year_rev
+-- order by product_id , year
+--
+-- MISTAKES / WHAT TO AVOID:
+-- 1. 'year' was not a source column; derive YEAR(order_date).
+-- 2. SUM(revenue) OVER(PARTITION BY product_id) repeats ALL-YEARS total on
+--    each order row; it does not produce ONE PRODUCT-YEAR ROW.
+-- 3. Applying LAG at order grain compares orders, not aggregated years.
+-- 4. YoY growth != current/previous. Correct: (current - previous)/previous*100.
+-- 5. LAG moves to previous AVAILABLE year; if 2024 is absent, it may return
+--    2023 when the current row is 2025. Validate the year gap.
+-- 6. ROUND(expression, 2) must contain the precision inside the parentheses.
+-- 7. Avoid division by zero using NULLIF or a CASE condition.
+--
+-- CORRECT GRAIN: order -> product+year -> product+year with prior-year values
+-- -> product+year with growth %.
+-- MEMORY TRIGGER: GROUP BY yearly grain -> LAG (year and revenue) ->
+--                check exact calendar year -> growth formula.
+
+WITH yearly_sales AS (
+    SELECT
+        product_id,
+        YEAR(order_date) AS sales_year,
+        SUM(revenue) AS yearly_revenue
+    FROM Orders
+    GROUP BY product_id, YEAR(order_date)
+),
+previous_year AS (
+    SELECT
+        product_id,
+        sales_year,
+        yearly_revenue,
+        LAG(sales_year) OVER (
+            PARTITION BY product_id ORDER BY sales_year
+        ) AS prev_year,
+        LAG(yearly_revenue) OVER (
+            PARTITION BY product_id ORDER BY sales_year
+        ) AS prev_year_revenue
+    FROM yearly_sales
+)
+SELECT
+    product_id,
+    sales_year AS year,
+    yearly_revenue,
+    CASE
+        WHEN prev_year = sales_year - 1 AND prev_year_revenue <> 0
+        THEN ROUND(100.0 * (yearly_revenue - prev_year_revenue)
+                   / prev_year_revenue, 2)
+        ELSE NULL
+    END AS yoy_growth_pct
+FROM previous_year
+ORDER BY product_id, sales_year;
+
+
+-- ###########################################################################
+-- Q2: MONTH-OVER-MONTH PAYMENT GROWTH
+-- ###########################################################################
+-- INPUT: Payments(payment_id, merchant_id, payment_date, amount)
+-- REQUIREMENT: For every merchant-month containing payments, report total
+-- payments and % change versus the IMMEDIATELY PRECEDING CALENDAR MONTH.
+-- Missing previous calendar month / previous amount 0 -> NULL.
+-- EXPECTED ROWS:
+-- M1 2025-11 1500 NULL
+-- M1 2025-12 1800 20.00
+-- M1 2026-01 1500 -16.67
+-- M2 2025-11  800 NULL
+-- M2 2026-01 1200 NULL  -- Dec absent, even though LAG sees Nov
+-- M3 2025-12  500 NULL
+--
+-- MY ORIGINAL REASONING:
+-- Raw: one row per merchant per payment [correct].
+-- Intermediate: monthly total then previous monthly value [correct].
+-- Final: said 'one row per merchant'; should be MERCHANT + MONTH.
+-- Pattern: aggregate -> LAG(prev month and total) -> MoM growth [correct].
+--
+-- MY ORIGINAL SQL (VERBATIM, COMMENTED OUT):
+-- with cte as (
+-- Select merchant_id , sum(monthly_amount) as total_monthly , date_format(paymnet_date,'%Y-%m') as payment_month
+-- from payments
+-- group by merchant_id , date_format(paymnet_date,'%Y-%m')
+-- ) , cte2 as (
+-- select merchant_id , total_monthly , lag(payment_month) over (partition by merchant_id order by payment_month) as prev_month,lag(total_monthly) over (partition by merchant_id order by paymnet_month) as prev_month_total
+-- from cte
+-- )
+-- select merchant_id , total_monthly , payment_month , case when prev_month=payment_month -1 and prev_month_total <> 0
+-- then round(100 * (total_monthly - prev_month_total) / prev_month_total,2) else null end as Mom_grwoth
+-- from cte2
+--
+-- MISTAKES / WHAT TO AVOID:
+-- 1. Input has amount, NOT monthly_amount; aggregate SUM(amount).
+-- 2. Column typo 'paymnet_date' -> payment_date.
+-- 3. CTE2 did NOT select payment_month, so the final SELECT cannot read it.
+-- 4. 'paymnet_month' typo in second LAG's ORDER BY.
+-- 5. payment_month - 1 is NOT valid calendar arithmetic on a YYYY-MM string.
+--    In particular, 2026-01 must compare to 2025-12, not 2026-00.
+-- 6. LAG sees previous RECORDED month; compare its date to the actual previous
+--    calendar month to reject gaps (M2 Nov -> Jan).
+-- 7. Final grain is merchant + month, never just merchant.
+--
+-- CORRECT GRAIN: payment -> merchant+calendar-month -> merchant+month with
+-- previous recorded month/amount -> merchant+month with MoM %.
+-- MEMORY TRIGGER: Monthly GROUP BY -> LAG -> DATE_SUB one calendar month ->
+--                growth formula; carry every needed column across CTEs.
+
+WITH monthly_payments AS (
+    SELECT
+        merchant_id,
+        CAST(DATE_FORMAT(payment_date, '%Y-%m-01') AS DATE) AS month_start,
+        SUM(amount) AS monthly_amount
+    FROM Payments
+    GROUP BY merchant_id, CAST(DATE_FORMAT(payment_date, '%Y-%m-01') AS DATE)
+),
+previous_month AS (
+    SELECT
+        merchant_id,
+        month_start,
+        monthly_amount,
+        LAG(month_start) OVER (
+            PARTITION BY merchant_id ORDER BY month_start
+        ) AS prev_month_start,
+        LAG(monthly_amount) OVER (
+            PARTITION BY merchant_id ORDER BY month_start
+        ) AS prev_monthly_amount
+    FROM monthly_payments
+)
+SELECT
+    merchant_id,
+    DATE_FORMAT(month_start, '%Y-%m') AS payment_month,
+    monthly_amount,
+    CASE
+        WHEN prev_month_start = DATE_SUB(month_start, INTERVAL 1 MONTH)
+             AND prev_monthly_amount <> 0
+        THEN ROUND(100.0 * (monthly_amount - prev_monthly_amount)
+                   / prev_monthly_amount, 2)
+        ELSE NULL
+    END AS mom_change_pct
+FROM previous_month
+ORDER BY merchant_id, month_start;
+
+
+-- ###########################################################################
+-- Q3: GAPS & ISLANDS — ALL MAXIMAL CONSECUTIVE-DAY LOGIN STREAKS
+-- ###########################################################################
+-- INPUT: UserLogins(user_id, login_date)
+-- ASSUMPTION: At most one login row per user per calendar date.
+-- REQUIREMENT: Every maximal run of >=2 consecutive days for each user;
+-- output user_id, streak_start, streak_end, streak_length.
+-- EXPECTED ROWS:
+-- 101 2026-10-01 2026-10-03 3
+-- 101 2026-10-05 2026-10-06 2
+-- 103 2026-10-02 2026-10-05 4
+--
+-- MY ORIGINAL REASONING / ATTEMPT (NO SQL WAS WRITTEN):
+-- 'raw grain - one row per use per login date'
+-- 'intermediate grain - we find the streak and then attach the streak length per user'
+-- 'final grain - one row per user per streak length satisfhying the condition of atleast 2 consecutive login'
+-- 'pattern - we use the lag first to find the users with atleast 2 consecutive login and then count the streak length and we also need to use the case statement to find the start and end date for each streak'
+-- 'i m not sure how to solve this question logic wise also and syntax wise also i mean maybe we give a rank / rowwn umber where if we have atleast 2 login we then count it and then take the date not sure'
+--
+-- NO ORIGINAL SQL EXISTS FOR Q3: do not fabricate an attempted query.
+--
+-- CONCEPTUAL GAP:
+-- LAG() can detect whether a date follows the previous date, but to return
+-- every separate MAXIMAL streak, records must be assigned an ISLAND KEY.
+-- Finding 'does a user have consecutive days?' is not the same as grouping
+-- every streak into its own group with start, end and length.
+--
+-- CORRECT GRAIN: user+login_date -> user+date with ROW_NUMBER ->
+-- user+date with island key -> ONE ROW PER user+island -> filter length>=2.
+--
+-- WHY DATE - ROW_NUMBER WORKS:
+-- For a user with Oct 1,2,3,5,6, the row numbers are 1,2,3,4,5.
+-- Date minus rn days -> Sep 30, Sep 30, Sep 30, Oct 1, Oct 1.
+-- Consecutive dates share the same resulting anchor date.
+--
+-- COMMON PITFALLS:
+-- * GROUP BY both user_id and island key; identical anchors across users
+--   must not merge separate users' streaks.
+-- * Keep the single-day islands while GROUPing, then filter with HAVING.
+-- * Deduplicate user/date FIRST if the source allows several logins/day.
+-- * One missing calendar day always breaks a streak.
+--
+-- MY QUICK CHECK RESULT:
+-- Input dates Oct 1,2,5,6,7,10 -> THREE islands of lengths 2,3,1;
+-- only TWO qualify when HAVING COUNT(*) >= 2.
+-- MEMORY TRIGGER: ROW_NUMBER by user/date -> date minus rn days = island ID
+--                -> GROUP BY user+island -> MIN/MAX/COUNT -> HAVING.
+
+WITH numbered_logins AS (
+    SELECT
+        user_id,
+        login_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY user_id ORDER BY login_date
+        ) AS rn
+    FROM UserLogins
+),
+islands AS (
+    SELECT
+        user_id,
+        login_date,
+        DATE_SUB(login_date, INTERVAL rn DAY) AS island_key
+    FROM numbered_logins
+)
+SELECT
+    user_id,
+    MIN(login_date) AS streak_start,
+    MAX(login_date) AS streak_end,
+    COUNT(*) AS streak_length
+FROM islands
+GROUP BY user_id, island_key
+HAVING COUNT(*) >= 2
+ORDER BY user_id, streak_start;
+
+
+-- ###########################################################################
+-- RECURRING CHECKLIST BEFORE SUBMITTING SQL
+-- ###########################################################################
+-- [ ] Raw grain matches source (order/payment/login), not an assumed group.
+-- [ ] Every intermediate grain is explicitly identified and implemented.
+-- [ ] Aggregate to correct product-year / merchant-month BEFORE doing LAG.
+-- [ ] LAG refers to a prior available ROW; validate time continuity if asked.
+-- [ ] Carry columns forward through EACH CTE (e.g., payment_month).
+-- [ ] Use source column names exactly; validate typos.
+-- [ ] Growth % = 100 * (current - previous) / previous, guard zero/NULL.
+-- [ ] For streak groups, build an ISLAND identifier before GROUP BY.
+-- [ ] Final grain, filters, expected ordering and output aliases all match.
+--
+-- NEXT SESSION: Q4 Sessionization and Q5 Funnel Analysis are NOT covered here.
