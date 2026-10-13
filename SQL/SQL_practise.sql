@@ -3778,3 +3778,166 @@ Final: One row per product per year with YoY growth %
 
 Q1 verdict: You recognized the right tool but need to reinforce the sequence: aggregate to the required grain first, compare periods second, calculate the business metric third.
 This is the same grain-transition issue we've identified previously, so it's a priority for your practice.
+
+
+13/10/2026 : 
+Table: EmployeeProjects
+employee_id	project_id	hours_worked
+101	P1	10
+101	P1	20
+101	P2	30
+102	P1	40
+102	P2	20
+102	P2	10
+103	P1	15
+103	P2	15
+Each row represents a separate work-log entry. An employee may have multiple entries for the same project.
+Requirement
+Return employees whose highest total hours on any single project are strictly greater than 1.5 times their average total hours per project.
+Conditions:
+- First determine total hours for each employee-project combination.
+- Calculate the average across the projects an employee worked on, not across individual work-log entries.
+- Consider only projects with work-log entries.
+- Use a strict > comparison.
+- Return employee_id only, sorted ascending.
+Expected output
+employee_id
+102
+For verification:
+- Employee 101: project totals 30 and 30 → does not qualify.
+- Employee 102: project totals 40 and 30 → does not qualify.
+- Employee 103: project totals 15 and 15 → does not qualify.
+Correction: The stated expected output should actually be empty under the specified strict 1.5× threshold. To avoid practicing against an inconsistent question, let's use the corrected requirement: highest project hours strictly greater than 1.1 times the average project hours.
+Then the expected output is:
+employee_id
+102
+Now give me:
+Raw grain → Intermediate grain(s) → Final grain → Requirement → Pattern → SQL
+I'll assess your grain and logic separately from your SQL implementation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+raw grain - one row per employee per project hour
+intermediate grain - we find the higehst total hour per employee and then attach their average total hour 
+final grain - one row per employee satisfying teh conddition of total_hour > 1.1 * avg(total_hour)
+requirement - first find the highest total hour per employee then find the avg hour per employee across projects and then compare 
+pattern - we first use max and group by to find the higest hour per employee then do the avg() over () to find avg hours and then compare
+
+with cte as (
+select employee_id , hours_worked,max(hour_worked) as highest_hour , project_id
+from employeeprojects
+group by employee_id , project_id
+), 
+with avg_hr as (
+select employee_id , project_id , avg(hours_worked) over (partition by employee_id) as avg_hours,highest_hour
+from cte)
+select employee_id from avg_hr
+where highest_hour > 1.1 * avg_hours
+group by employee_id
+
+
+
+
+
+
+
+
+
+
+
+
+
+Good attempt. You've identified that we need to compare maximum project hours against average project hours per employee. But you're repeating the exact mistake we're trying to eliminate in Stage 1: aggregating at the wrong grain.
+Let's examine it carefully.
+Stage 1 · P1 · Q1/3 — Assessment
+Area	Assessment
+Raw grain	✅ One row per work-log entry
+Intermediate grain	⚠️ Missing employee-project totals
+Final grain	✅ One row per qualifying employee
+Requirement understanding	✅ Correct
+Pattern selection	⚠️ AVG() OVER() can work, but your MAX() is applied too early
+SQL correctness	❌ Aggregation and CTE syntax errors
+1. Your main logical mistake
+You wrote:
+SELECT
+    employee_id,
+    hours_worked,
+    MAX(hour_worked) AS highest_hour,
+    project_id
+FROM EmployeeProjects
+GROUP BY employee_id, project_id
+
+
+There are three problems:
+- MAX(hours_worked) finds the largest individual work-log entry, not the total hours for a project.
+- hours_worked isn't grouped or aggregated, making it invalid under standard SQL grouping rules.
+- You need SUM(hours_worked) to create one total per employee-project combination.
+Look at employee 101:
+project_id	Individual entries	Project total
+P1	10, 20	30
+P2	30	30
+Your MAX(hours_worked) would give 20 for P1, but its total is 30.
+That's why we must first establish the employee-project grain.
+2. Your second CTE has two issues
+You wrote:
+WITH avg_hr AS (...)
+
+
+Multiple CTEs use one WITH, separated by commas.
+You also calculated the average but didn't calculate the maximum across the already-aggregated project totals.
+Your final GROUP BY employee_id is unnecessary if you first reduce the results to one row per employee.
+3. Correct SQL
+WITH project_hours AS (
+    SELECT
+        employee_id,
+        project_id,
+        SUM(hours_worked) AS total_project_hours
+    FROM EmployeeProjects
+    GROUP BY employee_id, project_id
+),
+employee_metrics AS (
+    SELECT
+        employee_id,
+        MAX(total_project_hours) AS highest_project_hours,
+        AVG(total_project_hours) AS avg_project_hours
+    FROM project_hours
+    GROUP BY employee_id
+)
+SELECT employee_id
+FROM employee_metrics
+WHERE highest_project_hours > 1.1 * avg_project_hours
+ORDER BY employee_id;
+
+
+4. The correct grain flow
+Raw — Employee × Project × Work-log entry
+Individual hours_worked values
+Intermediate 1 — Employee × Project
+SUM(hours_worked) → total_project_hours
+Intermediate 2 — Employee
+MAX(project total), AVG(project total)
+Final — Qualifying employee
+highest_project_hours > 1.1 × avg_project_hours
+
+The specific habit we need to change
+Before using MAX(), AVG(), or SUM(), ask yourself:
+"Am I aggregating individual records, or totals that were already calculated at another grain?"
+In this problem:
+- SUM(hours_worked) operates on raw work-log entries.
+- MAX(total_project_hours) operates on project totals.
+- AVG(total_project_hours) operates on project totals.
+That's an aggregate of aggregates, and it's exactly where you've struggled in previous questions.
+Q1 status: Not mastered yet. That's fine—we're staying on this concept until it becomes reliable.
