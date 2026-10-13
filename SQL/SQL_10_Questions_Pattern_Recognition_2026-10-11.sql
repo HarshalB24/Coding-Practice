@@ -895,3 +895,397 @@ ORDER BY user_id, streak_start;
 -- [ ] Final grain, filters, expected ordering and output aliases all match.
 --
 -- NEXT SESSION: Q4 Sessionization and Q5 Funnel Analysis are NOT covered here.
+
+
+
+13/10/2026:
+/*
+===============================================================================
+STAGE 1 | P1 CONCEPT 1 — MULTI-LEVEL AGGREGATION & GRAIN TRANSITIONS
+Practice revision bank | 13–14 October 2026 | Dialect: MySQL 8+
+===============================================================================
+PURPOSE
+- Preserve MY attempts, the specific errors I made, correct approaches, and
+  reasoning behind grain changes in this Stage 1 concept only.
+- Incorrect attempts are in comments. Correct queries are provided below each.
+- Each correct query assumes the stated practice source table exists.
+
+MASTER RULES
+1. Raw grain = what ONE input row means, not the desired output.
+2. Establish the grain of the metric BEFORE MAX/AVG/ranking it.
+3. At each CTE ask: 'What does ONE row represent after this SELECT?'
+4. GROUP BY identifies the keys for an aggregate row; PARTITION BY identifies
+   the comparison set for window calculations. They need not be identical.
+5. If the requirement says 'average of entity averages', compute one average
+   per entity first, then AVG() those entity averages.
+6. In an aggregate SELECT, don't project columns outside GROUP BY unless
+   they're themselves aggregated (under standard SQL rules).
+7. The final scalar comparison must read from the CTE at the correct grain.
+8. Verify sample arithmetic and strict inequalities; don't trust a mistaken
+   expected-result label.
+
+-------------------------------------------------------------------------------
+Q1 — EMPLOYEE PROJECT HOURS / HIGHEST PROJECT TOTAL VS AVG PROJECT TOTAL
+-------------------------------------------------------------------------------
+TABLE: EmployeeProjects(employee_id, project_id, hours_worked)
+ROWS:
+(101,P1,10),(101,P1,20),(101,P2,30),
+(102,P1,40),(102,P2,20),(102,P2,10),
+(103,P1,15),(103,P2,15)
+REQUIREMENT: Employees whose highest total hours on any one project are
+strictly greater than 1.1 x their average total hours per project.
+NOTE: The initial prompt said 1.5x but was corrected to 1.1x BEFORE attempt
+because 1.5x yields no matches. Expected result at 1.1x: 102.
+
+MY REASONING (abridged faithfully):
+Raw: one row per employee per project hour.
+Intermediate: highest total hour per employee, attach average total hours.
+Final: one row per qualifying employee.
+Pattern: MAX/GROUP BY first, then AVG() OVER() and compare.
+
+MY ORIGINAL SQL (preserved):
+with cte as (
+select employee_id , hours_worked,max(hour_worked) as highest_hour , project_id
+from employeeprojects
+group by employee_id , project_id
+), 
+with avg_hr as (
+select employee_id , project_id , avg(hours_worked) over (partition by employee_id) as avg_hours,highest_hour
+from cte)
+select employee_id from avg_hr
+where highest_hour > 1.1 * avg_hours
+
+MISTAKES
+- MAX(hours_worked) measures max *individual log*, not max project total.
+- Forgot SUM(hours_worked) at employee-project grain.
+- Raw hours_worked selected alongside GROUP BY without aggregation.
+- Repeated WITH; multiple CTE definitions share ONE WITH separated by commas.
+- Compared metrics before computing project totals.
+
+CORRECT GRAINS:
+Work-log row -> employee + project (SUM hours) -> employee (MAX/AVG project
+hours) -> qualifying employee.
+*/
+WITH project_hours AS (
+    SELECT employee_id, project_id, SUM(hours_worked) AS total_project_hours
+    FROM EmployeeProjects
+    GROUP BY employee_id, project_id
+), employee_metrics AS (
+    SELECT employee_id,
+           MAX(total_project_hours) AS highest_project_hours,
+           AVG(total_project_hours) AS avg_project_hours
+    FROM project_hours
+    GROUP BY employee_id
+)
+SELECT employee_id
+FROM employee_metrics
+WHERE highest_project_hours > 1.1 * avg_project_hours
+ORDER BY employee_id;
+
+/*
+-------------------------------------------------------------------------------
+Q2 — ORDER ITEMS / HIGHEST ORDER TOTAL VS AVG ORDER TOTAL
+-------------------------------------------------------------------------------
+TABLE: OrderItems(order_id, customer_id, product_id, quantity, unit_price)
+DATA:
+(1,C1,P1,2,100),(1,C1,P2,1,300),(2,C1,P3,1,200),(3,C1,P1,3,100),
+(4,C2,P2,2,200),(5,C2,P1,1,100),(5,C2,P3,1,100),(6,C3,P1,1,500)
+REQUIREMENT: Customers with max total order value > 1.5 x average total
+order value. STRICT inequality; correct output on given data is EMPTY.
+IMPORTANT: An earlier assistant incorrectly predicted C1. C1 order totals
+500, 200, 300 -> MAX=500, AVG=333.333..., 1.5*AVG=500. Not greater.
+
+MY FIRST SQL (preserved):
+with cte as (
+select customer_id , order_id , (quanity * unit_price) as total_order_value
+from orderitems
+group by customer_id , order_id
+) , avg_val as (
+select customer_id , order_id , total_order_value , max(total_order_value) as highest_total_value,
+avg(total_order_value) as avg_total_value 
+from cte
+)
+select customer_id 
+from avg_val
+where highest_total_vale > 1.5 * avg_total_value
+order by customer_id
+
+MISTAKES FIRST ATTEMPT
+- Multiplication alone calculates line value, not total order value.
+- SUM(quantity * unit_price) needed per order.
+- Second CTE mixed customer totals and individual order columns; omitted
+  GROUP BY customer_id.
+- Spelling: quanity, highest_total_vale.
+
+MY REWRITE (preserved):
+with cte as (
+select customer_id , order_id , sum(quantity * unit_price) as total_ord_val
+from orderitems
+group by customer_id , order id
+), avg_val as (
+select customer_id , total_ord_val , max(total_ord_val) as highest_ord_val , avg(total_ord_val) as avg_ord_val
+from cte
+group by customer_id)
+select customer_id
+from avg_val
+wher highest_ord_val > 1.5 * avg_ord_val
+
+MISTAKES IN REWRITE
+- 'order id' should be order_id; 'wher' should be WHERE.
+- total_ord_val projected unaggregated in SELECT grouped only by customer.
+- Logic/grain now right; SQL execution precision still needed.
+
+CORRECT GRAINS:
+Order line -> customer + order (SUM quantity*price) -> customer
+(MAX and AVG of order totals) -> qualifying customer.
+*/
+WITH order_totals AS (
+    SELECT customer_id, order_id,
+           SUM(quantity * unit_price) AS total_order_value
+    FROM OrderItems
+    GROUP BY customer_id, order_id
+), customer_metrics AS (
+    SELECT customer_id,
+           MAX(total_order_value) AS max_order_value,
+           AVG(total_order_value) AS avg_order_value
+    FROM order_totals
+    GROUP BY customer_id
+)
+SELECT customer_id
+FROM customer_metrics
+WHERE max_order_value > 1.5 * avg_order_value
+ORDER BY customer_id;
+
+/*
+-------------------------------------------------------------------------------
+CONCEPT CHECK — WHAT DOES 'AVERAGE' WEIGHT EQUALLY?
+-------------------------------------------------------------------------------
+Examples discussed:
+- Average across ALL orders: AVG(order_value) from ONE ROW PER ORDER.
+- Average order value PER customer: GROUP BY customer_id, AVG(order_value).
+- Average OF customers' order averages: AVG(customer_avg) from ONE ROW
+  PER CUSTOMER, so every customer is weighted equally.
+
+My confusion: 'For customers avg order value we directly take avg but for
+across all orders we first calculate avg per order ...' — reversed.
+
+Numerical example: C1 has orders 100,200,300; C2 has one order 900.
+Average of ALL orders = (100+200+300+900)/4 = 375.
+Average of CUSTOMER averages = ((100+200+300)/3 + 900)/2 = 550.
+My answers: initially wrote 1500/4 = 350 (arithmetic slip); correctly
+calculated customer averages and 550.
+
+MENTAL TRIGGER: What is ONE equally weighted observation in this AVG?
+If one order => order grain. If one customer => customer grain.
+-------------------------------------------------------------------------------
+Q3 — STORE TRANSACTIONS / STORE AVG DAILY VS AVG OF STORE AVGS
+-------------------------------------------------------------------------------
+TABLE: StoreTransactions(transaction_id,store_id,transaction_date,revenue)
+DATA:
+(1,S1,2026-10-01,100),(2,S1,2026-10-01,200),
+(3,S1,2026-10-02,300),(4,S2,2026-10-01,500),
+(5,S2,2026-10-02,100),(6,S2,2026-10-02,200),
+(7,S3,2026-10-01,800),(8,S3,2026-10-03,200)
+REQUIREMENT: Store avg daily revenue, only active days. Return stores with
+store avg daily revenue > equally-weighted avg of all stores' daily avgs.
+Expected: S3 / 500.00. Store averages: S1=300,S2=400,S3=500;
+overall store-average benchmark = 400.
+
+MY ORIGINAL SQL (preserved):
+-- below cte gives daily level revenue per store
+with cte as (
+Select store_id , transaction_date , sum(revenue) as daily_rev
+from storetransactions 
+group by store_id , transaction_date
+),
+---below cte will give avg revenue of each store 
+avg_r as (select store_id , avg(daily_rev) as avg_daily_rev
+from cte
+group by store_id 
+)
+select store_id , avg_daily_rev
+from avg_r where 
+avg_daily_rev > (select avg(revenue) from storetransactions)
+
+MISTAKE
+- Both CTEs and all grain transitions correct FIRST TRY.
+- Final subquery read raw transactions, AVG(revenue), instead of reading
+  one-row-per-store avg_r CTE: AVG(avg_daily_rev) FROM avg_r.
+- This is a wrong-source-grain mistake, not wrong understanding of first CTE.
+
+CORRECT GRAINS:
+Transaction -> store + active day (SUM revenue) -> store (AVG daily_rev)
+-> global scalar (AVG of each store's avg) -> qualifying store.
+*/
+WITH store_day AS (
+    SELECT store_id, transaction_date, SUM(revenue) AS daily_rev
+    FROM StoreTransactions
+    GROUP BY store_id, transaction_date
+), store_avg AS (
+    SELECT store_id, AVG(daily_rev) AS avg_daily_rev
+    FROM store_day
+    GROUP BY store_id
+)
+SELECT store_id, ROUND(avg_daily_rev, 2) AS avg_daily_revenue
+FROM store_avg
+WHERE avg_daily_rev > (SELECT AVG(avg_daily_rev) FROM store_avg)
+ORDER BY store_id;
+
+/*
+-------------------------------------------------------------------------------
+Q4 — DRIVER DELIVERIES / ADDITIONAL MASTERY CHECKPOINT
+-------------------------------------------------------------------------------
+TABLE: DeliveryRecords(delivery_id,driver_id,delivery_date,earnings)
+DATA:
+(1,D1,2026-10-01,100),(2,D1,2026-10-01,200),
+(3,D1,2026-10-02,300),(4,D2,2026-10-01,500),
+(5,D2,2026-10-02,100),(6,D2,2026-10-02,200),
+(7,D3,2026-10-01,800),(8,D3,2026-10-03,200)
+REQUIREMENT: Driver avg daily earnings > avg of all drivers' avg daily
+ earnings. Only active days. Expected D3 / 500.00.
+
+MY ORIGINAL SQL (preserved):
+--- this givess daily earning per driver 
+with cte as (
+Select driver_id , delivery_Date ,sum(earnings) as daily_earnings
+from deliveryrecords
+group by driver_id , delivery_Date
+),
+--- this gives avg daily earning per driver
+avg_ear as (
+select driver_id  , avg(daily_earnings) as avg_daily_Earning
+from cte
+group by driver_id
+)
+select driver_id,avg_daily_earnings 
+from avg_ear
+where avg_daily_earnings > (select avg(avg_daily_earnings) from avg_ear)
+
+ASSESSMENT
+- Correct grain, two-stage aggregation, final CTE comparison, and logic.
+- Small but important alias mismatch: created avg_daily_Earning (singular)
+  but SELECT/WHERE use avg_daily_earnings (plural). Needs correction to run.
+- Round result to 2 decimals to meet output requirement.
+- Prior coaching called this 'fully executable'; that was too generous.
+
+CORRECT GRAINS:
+Delivery -> driver + active date -> driver avg daily earnings -> global
+avg of driver averages -> qualifying driver.
+*/
+WITH daily_earnings AS (
+    SELECT driver_id, delivery_date, SUM(earnings) AS daily_earnings
+    FROM DeliveryRecords
+    GROUP BY driver_id, delivery_date
+), driver_avgs AS (
+    SELECT driver_id, AVG(daily_earnings) AS avg_daily_earnings
+    FROM daily_earnings
+    GROUP BY driver_id
+)
+SELECT driver_id, ROUND(avg_daily_earnings, 2) AS avg_daily_earnings
+FROM driver_avgs
+WHERE avg_daily_earnings > (
+    SELECT AVG(avg_daily_earnings) FROM driver_avgs
+)
+ORDER BY driver_id;
+
+/*
+-------------------------------------------------------------------------------
+Q5 — E-COMMERCE / HIGHEST-SPENDING CUSTOMER PER CATEGORY (WITH TIES)
+-------------------------------------------------------------------------------
+TABLE: OrderItems(order_id,customer_id,category,quantity,unit_price)
+IMPORTANT: This is a SEPARATE scenario/table schema from Q2. Run each case
+with its corresponding practice data, not both under one OrderItems schema.
+DATA:
+(1,C1,Electronics,2,500),(1,C1,Clothing,1,200),
+(2,C1,Electronics,1,800),(3,C2,Electronics,1,600),
+(4,C2,Clothing,3,100),(5,C2,Clothing,2,200),
+(6,C3,Electronics,1,300),(7,C3,Clothing,2,150)
+REQUIREMENT: Highest total spending customer in each category across all
+orders; include all ties; one row per customer-category.
+Expected: Clothing C2 700; Electronics C1 1800.
+
+MY ORIGINAL SQL (preserved):
+-- this gives total spend per cust per category
+with cte as (
+select category , customer_id , sum(quantity*unit_price) as total_spent
+from orderitems
+group by category , customer_id
+),
+--- this will give us rank per customer cat combination based on total spent 
+high_Sp as (
+select category , customer_id , total_spent , dense_rank () over (partition by customer_id , category order by total_spent desc) as rn
+from high_sp
+)
+--- here we filter out for rn=1
+select category , customer_id , total_spent
+from high_sp
+where rn=1 
+order by category , customer_id
+
+ASSESSMENT
+- Core requirement, SUM(quantity*unit_price), customer-category grain,
+  DENSE_RANK for ties, and rn=1 filter all identified CORRECTLY.
+- Window partition mistake: PARTITION BY customer_id,category isolates
+  each already-aggregated customer-category row; all ranks would be 1.
+- Compare customers WITHIN a category, so PARTITION BY category only.
+- CTE self-reference: high_sp reads FROM high_sp instead of FROM cte.
+- 'One row per customer-category' does not conflict with multiple tied
+  customers in one category: each tied customer appears once.
+
+CORRECT GRAINS:
+Line item -> customer + category (SUM spend) -> same rows ranked WITHIN
+category -> rank=1 qualifying customer-category rows.
+
+MASTER DIFFERENCE:
+GROUP BY category,customer_id = one spend total per customer/category.
+PARTITION BY category = which customer totals compete against each other.
+*/
+WITH customer_category_spend AS (
+    SELECT category, customer_id,
+           SUM(quantity * unit_price) AS total_spent
+    FROM OrderItems
+    GROUP BY category, customer_id
+), category_ranking AS (
+    SELECT category, customer_id, total_spent,
+           DENSE_RANK() OVER (
+               PARTITION BY category
+               ORDER BY total_spent DESC
+           ) AS spending_rank
+    FROM customer_category_spend
+)
+SELECT category, customer_id, total_spent
+FROM category_ranking
+WHERE spending_rank = 1
+ORDER BY category, customer_id;
+
+/*
+===============================================================================
+STAGE 1 — P1 CONCEPT 1 REVIEW SUMMARY
+===============================================================================
+MOST RECURRENT ERROR TYPES
+[A] Requirement says 'total per X' but I apply MAX/AVG to raw rows.
+    FIX: SUM to X grain first; only then compare MAX/AVG of those totals.
+[B] Mixing fields from different grains in aggregated SELECT.
+    FIX: Only GROUP BY keys + aggregated values at that grain.
+[C] Correct CTE chain, wrong source used for final global average.
+    FIX: Identify which CTE has one row per equally weighted entity.
+[D] Correct DENSE_RANK but over-partitioning.
+    FIX: PARTITION BY the population WITHIN which items compete.
+[E] SQL wiring: alias mismatch, typos, accidental self-reference.
+    FIX: Check every selected column and FROM reference after each CTE.
+
+BEFORE SUBMITTING EACH SQL QUERY:
+[ ] What is each raw row?
+[ ] What does each intermediate row mean after GROUP BY?
+[ ] Is my measure a raw value, group total, or avg of group metrics?
+[ ] Which CTE has the correct grain for my final comparison?
+[ ] Who should compete in each window PARTITION BY?
+[ ] Do I accidentally select non-grouped/non-aggregated columns?
+[ ] Are table names, columns, and aliases EXACTLY consistent?
+[ ] Does the result agree with strict inequalities and sample arithmetic?
+
+STATUS: Concept and grain reasoning improved substantially. Continue later
+with a mixed, independent first-attempt question to verify retention and
+code precision; do not mark the entire P1 track mastered yet.
+===============================================================================
+*/
