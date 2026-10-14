@@ -1289,3 +1289,125 @@ with a mixed, independent first-attempt question to verify retention and
 code precision; do not mark the entire P1 track mastered yet.
 ===============================================================================
 */
+
+
+14/10/2026:
+AVOID NEXT TIME:
+- Never GROUP BY away rows before ranking them.
+- Window calculation is not the same as selecting rank 1: FILTER it.
+- Trace each output column back to the CTE providing it.
+- CTE aliases go in FROM/JOIN, not in "WITH cte AS" declarations.
+
+===============================================================================
+Q2 — INVALID CONSECUTIVE ORDER STATUS TRANSITIONS
+===============================================================================
+TABLE: OrderStatusHistory(event_id, order_id, status, event_time)
+
+SAMPLE DATA:
+ event_id | order_id | status    | event_time
+ 1        | O101     | created   | 2026-10-01 09:00
+ 2        | O101     | shipped   | 2026-10-01 11:00
+ 3        | O101     | delivered | 2026-10-02 15:00
+ 4        | O102     | created   | 2026-10-01 10:00
+ 5        | O102     | delivered | 2026-10-01 16:00
+ 6        | O103     | created   | 2026-10-02 09:00
+ 7        | O103     | shipped   | 2026-10-02 12:00
+ 8        | O104     | shipped   | 2026-10-03 10:00
+
+REQUIREMENT:
+Return distinct orders with at least one invalid consecutive status transition.
+ONLY valid transitions: created -> shipped; shipped -> delivered.
+Single-event orders have no transition; ignore last events without a successor.
+Within an order, order by event_time ASC then event_id ASC.
+
+EXPECTED:
+ O102
+
+YOUR ORIGINAL REASONING:
+ raw grain - one row per order per status
+ intermediate - umm we use lead here to check the next status directly
+ final - one row per order satisfying the condition of invalid status
+ pattern - we use lead here since we have to check if we have valid transition or not
+
+YOUR ORIGINAL SQL (AS WRITTEN):
+
+with cte as (
+Select order_id ,status, lead(status) over (partition by order_id ) as next_stat
+from orderstatushistory
+)
+select order_id from cte
+where (status ='created' and next_stat!='shipped' ) or (status='shipped' and next_stat!='delivered')
+
+WHAT WAS CORRECT:
+- Chose LEAD for comparing current status with the next actual event.
+- Properly kept current status and next status in the CTE.
+- Correctly queried the CTE without an unnecessary GROUP BY.
+
+MISTAKES:
+1. LOGIC: Missing ORDER BY event_time, event_id inside LEAD. PARTITION BY
+   identifies which order, not the order of events.
+2. LOGIC: Checking only two kinds of current status does not catch other invalid
+   pairs, e.g., delivered -> created.
+3. LOGIC: Explicitly exclude terminal rows with no next event; NULL comparisons
+   by themselves do not represent actual transitions.
+4. OUTPUT: Missing DISTINCT; an order could have multiple bad transitions.
+
+CORRECT GRAIN FLOW:
+ Raw: one row per status event
+ Intermediate: one row per event with its immediate next status
+ Final: one row per order with >=1 invalid adjacent event pair
+
+CORRECT APPROACH:
+1. LEAD(status) partitioned by order_id in a deterministic time/event_id order.
+2. Keep only actual event pairs (next_stat IS NOT NULL).
+3. Exclude pairs matching either of the TWO allowed transitions.
+4. Return each order once.
+
+NOTE: The answer below assumes status values are non-NULL, as in the sample.
+If nullable statuses are allowed, null-transition semantics must be defined.
+*/
+WITH ordered_events AS (
+    SELECT
+        order_id,
+        status,
+        LEAD(status) OVER (
+            PARTITION BY order_id
+            ORDER BY event_time, event_id
+        ) AS next_stat
+    FROM OrderStatusHistory
+)
+SELECT DISTINCT order_id
+FROM ordered_events
+WHERE next_stat IS NOT NULL
+  AND NOT (
+      (status = 'created' AND next_stat = 'shipped')
+      OR (status = 'shipped' AND next_stat = 'delivered')
+  )
+ORDER BY order_id;
+
+/*
+AVOID NEXT TIME:
+- Every sequence-dependent LEAD/LAG needs explicit, deterministic ordering.
+- Define the valid/invalid population precisely: NOT(valid transitions) is
+  safer than listing only selected invalid cases.
+- Do not count the final event as a transition.
+- SELECT DISTINCT when returning one entity that can have multiple bad events.
+
+===============================================================================
+CONCEPT 2 — DAILY MISTAKE BANK / PRE-SUBMISSION CHECKLIST
+===============================================================================
+[ ] Am I using a CTE alias inside a CTE definition? (Wrong: WITH cte x AS)
+[ ] Is every referenced table and column spelled exactly as in the schema?
+[ ] Are necessary columns projected from each CTE into the next?
+[ ] Did I accidentally GROUP BY before applying ROW_NUMBER / LEAD / LAG?
+[ ] Did I filter rn=1 if the requirement is about only the latest/first row?
+[ ] Does every LEAD/LAG/ROW_NUMBER have appropriate PARTITION and ORDER BY?
+[ ] Is tie-breaking deterministic when timestamps can tie?
+[ ] Do I need DISTINCT in the final output?
+[ ] Does the final WHERE refer to the right CTE and qualified columns?
+[ ] Does the resulting grain match the required one-row-per-entity output?
+
+NEXT SESSION: One additional P1 Concept 2 question for independent mastery.
+DO NOT mark P1 Concept 2 mastered yet; current status: improving.
+===============================================================================
+*/
