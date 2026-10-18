@@ -1571,3 +1571,387 @@ NEXT SESSION: One additional P1 Concept 2 question for independent mastery.
 DO NOT mark P1 Concept 2 mastered yet; current status: improving.
 ===============================================================================
 */
+
+18/11/2026:
+/*
+===============================================================================
+STAGE 1 | P1 — GRAIN, AGGREGATION, CTEs & WINDOW COMPARISONS
+Practice revision bank | 18 October 2026 | Dialect: MySQL 8+
+===============================================================================
+PURPOSE
+- Preserve MY original Day 1 SQL attempts and reasoning, then review mistakes.
+- Read the FULL QUESTION and PATTERN TYPE before reviewing my attempted SQL.
+- Incorrect attempts remain inside SQL comments; correct executable SQL follows.
+- Each problem uses its own hypothetical table and sample records.
+
+MASTER RULES
+1. Raw grain = what one row of SOURCE data represents.
+2. Calculate each metric at the required grain, not at whatever grain is handy.
+3. GROUP BY collapses rows; window functions retain rows and attach metrics.
+4. If a CTE aggregates rows, unaggregated original-row attributes are lost.
+5. A later CTE sees only the columns selected by the previous CTE.
+6. GROUP BY columns define the result grain; PARTITION BY defines peers.
+7. Compare exact unrounded numbers; ROUND only in the output.
+8. Verify expected outputs by calculating from sample rows.
+===============================================================================
+*/
+
+/*
+-------------------------------------------------------------------------------
+Q1 — CUSTOMER REFUND ANALYSIS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given OrderItems(order_id, customer_id, item_id, amount, is_refunded), find
+customers whose TOTAL REFUNDED ITEM AMOUNT across all orders is STRICTLY
+GREATER than 20% of TOTAL PURCHASED ITEM AMOUNT. Purchased includes refunded
+items. Refunded includes only records with is_refunded = 'Y'. Assume amounts
+are positive. Return customer_id, total_purchased, total_refunded, refund_pct
+(percentage rounded to 2 decimal places). Filter on the unrounded ratio.
+PATTERN TYPE: Conditional aggregation / single customer-level GROUP BY /
+              percentage threshold / retaining detail until metrics computed.
+-------------------------------------------------------------------------------
+TABLE: OrderItems(order_id, customer_id, item_id, amount, is_refunded)
+ROWS:
+(1,C1,I1,100,N),(1,C1,I2,200,Y),(2,C1,I3,300,N),
+(3,C2,I4,400,Y),(3,C2,I5,100,N),(4,C2,I6,200,N),
+(5,C3,I7,500,N),(5,C3,I8,200,N)
+EXPECTED:
+C1 | total_purchased=600 | total_refunded=200 | refund_pct=33.33
+C2 | total_purchased=700 | total_refunded=400 | refund_pct=57.14
+C3 does not qualify (0 refunded).
+
+MY ORIGINAL REASONING (faithfully transcribed):
+raw grain - one row per customer per order status
+intermediate grain - find total purchase amount per customer and then attach
+ total refund amount and refund % per customer
+final grain - one row per customer satsifying the condition
+requirement / logic -we do sum + group by to find total purchase per customer ,
+ then we total refund per customer and the return %
+pattern - sum + group by and case statement
+
+MY ORIGINAL SQL (preserved as written):
+with pur_cust as (
+Select customer_id , amount , is_Refunded,sum(amount) as total_purchase
+from orderitems
+group by customer_id
+),refund as (
+select customer_id , total_purchase , sum(case when is_refunded='Y' then amount else 0 end) as total_refunded
+from pur_cust
+)
+select customer_id , total_purchase , total_refunded,round((total_refunded / total_purchase)*100,2) as refund_pct
+from pur_cust
+where refund_pct > 20
+
+MISTAKES — WHAT EXACTLY TO CORRECT
+1. Raw grain is ONE ORDER ITEM, not customer/order status.
+2. First CTE groups by customer_id but selects amount and is_refunded without
+   aggregation. Invalid under ONLY_FULL_GROUP_BY; unreliable otherwise.
+3. Collapsing items before computing refunds loses item-level is_refunded
+   information. SUM(amount) and conditional SUM(...) belong together.
+4. Refund CTE mixes aggregated and nonaggregated columns without GROUP BY.
+5. Final SELECT incorrectly reads FROM pur_cust, which does NOT contain
+   total_refunded. It should read a CTE with both measures.
+6. refund_pct (SELECT alias) cannot be referenced in that same SELECT's WHERE.
+7. Compare unrounded refund ratio to 20%; round only projected percentage.
+
+CORRECT GRAINS:
+Order item -> customer (purchased SUM and conditional refund SUM)
+-> qualifying customer + displayed refund percentage.
+
+MENTAL TRIGGER:
+If multiple customer metrics depend on item attributes, calculate all of
+those metrics BEFORE collapsing the item rows. No extra CTE is required.
+*/
+WITH customer_refunds AS (
+    SELECT
+        customer_id,
+        SUM(amount) AS total_purchased,
+        SUM(CASE WHEN is_refunded = 'Y' THEN amount ELSE 0 END)
+            AS total_refunded
+    FROM OrderItems
+    GROUP BY customer_id
+)
+SELECT
+    customer_id,
+    total_purchased,
+    total_refunded,
+    ROUND(100.0 * total_refunded / total_purchased, 2) AS refund_pct
+FROM customer_refunds
+WHERE 100.0 * total_refunded / total_purchased > 20
+ORDER BY customer_id;
+
+/*
+-------------------------------------------------------------------------------
+Q2 — DEPARTMENT PERFORMANCE / EMPLOYEE SALES VS DEPARTMENT AVERAGE
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given EmployeeSales(sale_id, employee_id, department_id, sale_amount), return
+employees whose TOTAL SALES across their sales rows are STRICTLY GREATER than
+the AVERAGE EMPLOYEE TOTAL SALES in their own department. Each employee is
+weighted equally in the department average. Every employee belongs to one
+department. Return employee_id, department_id, total_sales, dept_avg_sales
+(the average displayed to two decimals).
+PATTERN TYPE: Two grain levels / SUM by employee then AVG over department /
+              retaining employee grain with a window function.
+-------------------------------------------------------------------------------
+TABLE: EmployeeSales(sale_id, employee_id, department_id, sale_amount)
+ROWS:
+(1,E1,D1,200),(2,E1,D1,300),(3,E2,D1,400),(4,E2,D1,100),
+(5,E3,D2,600),(6,E3,D2,200),(7,E4,D2,300),(8,E4,D2,100)
+EXPECTED:
+E3 | D2 | total_sales=800 | dept_avg_sales=600.00
+(D1 employee totals: 500,500; D2 totals: 800,400.)
+
+MY ORIGINAL REASONING (faithfully transcribed):
+raw grain - one row per employee per sale
+intermediate grain - find total sale per employee and attach dept avg sale
+final grain - one row per employee satisfying the condition
+requirement - find the total sale per employee by sum + group by then find
+ dept avg sale by avg(emp_total_Sale) group by dept apply the comparison
+pattern - sum + group by and comp
+
+MY ORIGINAL SQL (preserved as written):
+with emp_sale as (
+select employee_id , department_id , sum(sale_amount) as total_sales
+from employeesales
+group by employee_id , department_id
+),
+dept_Avg as (
+select employee_id,total_sales , department_id ,avg(total_sales) as dept_avg_sales
+from emp_sale
+group by employee_id , department_id
+)
+select employee_id , department_id , total_sales , dept_avg_sales
+from dept_avg where
+total_sales > dept_avg_Sales
+
+MISTAKES — WHAT EXACTLY TO CORRECT
+1. First CTE was CORRECT: one row per employee with SUM of sales.
+2. Second CTE GROUP BY employee_id, department_id made each employee its own
+   group; AVG(total_sales) therefore equaled that employee's total_sales.
+3. The comparison population is ALL EMPLOYEES WITHIN A DEPARTMENT, so for a
+   window approach PARTITION BY department_id only.
+4. If using GROUP BY department_id instead, the department result would need
+   to be joined back to employee totals to preserve employee rows.
+5. No need to average raw sale_amount: each employee must be weighted equally.
+
+CORRECT GRAINS:
+Sale -> employee+department (SUM sale_amount)
+-> employee+department WITH department AVG attached (window preserves rows)
+-> employee satisfying the threshold.
+
+MENTAL TRIGGER:
+GROUP BY chooses what ONE OUTPUT ROW represents; PARTITION BY chooses the
+set of rows used to compute an attached window metric.
+*/
+WITH emp_sale AS (
+    SELECT
+        employee_id,
+        department_id,
+        SUM(sale_amount) AS total_sales
+    FROM EmployeeSales
+    GROUP BY employee_id, department_id
+),
+dept_avg AS (
+    SELECT
+        employee_id,
+        department_id,
+        total_sales,
+        AVG(total_sales) OVER (PARTITION BY department_id)
+            AS dept_avg_sales
+    FROM emp_sale
+)
+SELECT
+    employee_id,
+    department_id,
+    total_sales,
+    ROUND(dept_avg_sales, 2) AS dept_avg_sales
+FROM dept_avg
+WHERE total_sales > dept_avg_sales
+ORDER BY department_id, employee_id;
+
+/*
+-------------------------------------------------------------------------------
+Q3 — DEPARTMENT SALARY VS DEPARTMENT AVERAGE
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given Employees(employee_id, department_id, salary), return every employee
+whose salary is STRICTLY GREATER than their own department's average salary.
+Keep individual employee rows. Return employee_id, department_id, salary,
+and dept_avg_salary rounded to 2 decimals for display only.
+PATTERN TYPE: Window AVG(PARTITION BY) / attach group metric to raw rows /
+              compare using full precision.
+-------------------------------------------------------------------------------
+TABLE: Employees(employee_id, department_id, salary)
+ROWS:
+(101,D1,60000),(102,D1,80000),(103,D1,100000),
+(104,D2,50000),(105,D2,70000),(106,D2,90000),
+(107,D3,75000),(108,D3,85000)
+EXPECTED:
+103 | D1 | 100000 | 80000.00
+106 | D2 |  90000 | 70000.00
+108 | D3 |  85000 | 80000.00
+
+MY ORIGINAL REASONING (faithfully transcribed):
+raw grain - one row per dept per employee sal
+intermediate grain - find avg salary of empl dept and attach it
+final grain - one row per emp satisfying the condition
+requriement - finding the avg of dept and comparing
+pattern - use group by and avg() over we use window function bcz we want to
+ preserve employee level row but get dept avg
+
+MY ORIGINAL SQL (preserved as written):
+with cte as (
+select employee_id , department_id , salary , avg(salary) over (partition by department_id) as dept_avg_sal
+from employees
+)
+select employee_id , department_id , salary , round(dept_avg_sal,2) as dept_avg_sal
+from cte
+where salary > round(dept_avg_sal,2)
+
+ASSESSMENT — CORRECT FIRST-ATTEMPT SOLUTION WITH ONE PRECISION CAUTION
+1. Raw, intermediate and final grain: CORRECT.
+2. Window AVG by department: CORRECT; no aggregation CTE needed.
+3. CTE and final SELECT: CORRECT, and sample output matches.
+4. Small improvement: WHERE salary > ROUND(dept_avg_sal, 2) may change the
+   threshold for fractional averages. Compare to unrounded dept_avg_sal;
+   ROUND only in final SELECT display.
+5. This is NOT a failure of window-function or grain understanding.
+
+CORRECT GRAINS:
+Employee -> employee WITH department AVG attached -> qualifying employee.
+
+MENTAL TRIGGER:
+Need a group average on each detail row? AVG(...) OVER(PARTITION BY group).
+Filter on original precision; only round the presentation.
+*/
+WITH dept_metrics AS (
+    SELECT
+        employee_id,
+        department_id,
+        salary,
+        AVG(salary) OVER (PARTITION BY department_id) AS dept_avg_salary
+    FROM Employees
+)
+SELECT
+    employee_id,
+    department_id,
+    salary,
+    ROUND(dept_avg_salary, 2) AS dept_avg_salary
+FROM dept_metrics
+WHERE salary > dept_avg_salary
+ORDER BY department_id, employee_id;
+
+/*
+-------------------------------------------------------------------------------
+Q4 — CUSTOMER SPENDING / AVG ORDER VALUE VS ALL-ORDER AVG
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given OrderItems(order_id, customer_id, product_id, quantity, unit_price),
+find customers whose AVERAGE ORDER VALUE is STRICTLY GREATER than the
+OVERALL AVERAGE ORDER VALUE across ALL INDIVIDUAL ORDERS. Each order can
+contain multiple items. Order value is SUM(quantity * unit_price) per order.
+Customer average = AVG(that customer's order totals). Overall average = AVG
+of EVERY order total, weighting ORDERS equally (NOT customers equally).
+Return customer_id and avg_order_value rounded to 2 decimals; compare exact
+unrounded amounts.
+PATTERN TYPE: Multi-stage aggregation / order-item to order to customer /
+              average of order totals vs global order average.
+-------------------------------------------------------------------------------
+TABLE: OrderItems(order_id, customer_id, product_id, quantity, unit_price)
+ROWS:
+(1,C1,P1,2,100),(1,C1,P2,1,300),(2,C1,P3,1,200),
+(3,C2,P1,3,100),(3,C2,P2,2,200),(4,C2,P3,1,100),
+(5,C3,P1,2,300),(6,C3,P2,1,200)
+EXPECTED (verified from data; original prompt incorrectly omitted C3):
+C2 | avg_order_value=400.00
+C3 | avg_order_value=400.00
+ORDER TOTALS: C1 (500,200), C2 (700,100), C3 (600,200).
+GLOBAL AVG ACROSS 6 ORDERS = (500+200+700+100+600+200)/6 = 383.33.
+
+MY ORIGINAL REASONING (faithfully transcribed):
+raw grain - one row per customer order
+intermediate grain - we find order value per customer then attach their avg
+ order value and attach avg order value
+final grain - one row per customer satisfying the condition
+requriement - we find total order value per customer then thier avg order
+ and then attach the avg order value and compare
+pattern - we use group by , then avg then windows function
+
+MY ORIGINAL SQL (preserved as written):
+with cust_total as (
+Select customer_id , (quantity * unit_price) as cust_total,avg(quantity*unit_price) over () as avg_order
+from orderitems
+),cust_avg as (
+select customer_id , cust_total , avg_order , avg(cust_total) as avg_cust_order
+from cust_total
+Group by customer_id
+)
+select customer_id , round(avg_order,2) as avg_order_val
+from cust_avg
+where cust_total > avg_order_val
+
+MISTAKES — WHAT EXACTLY TO CORRECT
+1. Raw grain = ONE ORDER ITEM, not one customer/order.
+2. quantity * unit_price was an ITEM LINE VALUE, not a full order total.
+   First aggregate SUM(quantity * unit_price) GROUP BY customer_id, order_id.
+3. AVG(quantity*unit_price) OVER () averages ITEM LINES, not ORDERS.
+4. Second CTE selects cust_total and avg_order while grouping only customer_id;
+   under ONLY_FULL_GROUP_BY they are invalid unaggregated projections.
+5. Final WHERE compares cust_total (wrong metric) with avg_order_val
+   (SELECT alias not available in same SELECT's WHERE).
+6. Actual requirement: compare CUSTOMER AVG ORDER VALUE vs GLOBAL AVG of
+   ALL ORDER TOTALS; the global average must read from order-grain CTE.
+7. The practice prompt's original expected output was erroneous: both C2 and
+   C3 qualify, not C2 alone. Do not count that mismatch against the learner.
+
+CORRECT GRAINS:
+Order item -> customer+order (SUM line values)
+-> customer (AVG order totals)
+-> qualifying customer relative to global AVG of all order totals.
+
+MENTAL TRIGGER:
+Before an AVG, ask: what should ONE equally weighted observation be?
+An item? An order? A customer? Choose the CTE with that exact row grain.
+*/
+WITH order_totals AS (
+    SELECT
+        customer_id,
+        order_id,
+        SUM(quantity * unit_price) AS order_value
+    FROM OrderItems
+    GROUP BY customer_id, order_id
+),
+customer_averages AS (
+    SELECT
+        customer_id,
+        AVG(order_value) AS avg_order_value
+    FROM order_totals
+    GROUP BY customer_id
+)
+SELECT
+    customer_id,
+    ROUND(avg_order_value, 2) AS avg_order_value
+FROM customer_averages
+WHERE avg_order_value > (SELECT AVG(order_value) FROM order_totals)
+ORDER BY customer_id;
+
+/*
+===============================================================================
+DAY 1 RECURRING-MISTAKE SUMMARY / BEFORE-SUBMISSION CHECKLIST
+===============================================================================
+[A] WRONG GRAIN: Am I averaging item rows, orders, employees, or customers?
+[B] DETAIL LOST: Did I aggregate before computing every item-level condition?
+[C] WRONG GROUP KEYS: Do GROUP BY keys produce the row grain I actually need?
+[D] WINDOW PEERS: Is PARTITION BY the population I want to compare against?
+[E] CTE WIRING: Does this CTE really expose each column I use later?
+[F] RIGHT METRICS: Am I comparing avg_customer_order vs avg_ALL_orders?
+[G] PRECISION: Filter on unrounded amounts; ROUND for display only.
+[H] SOURCE CHECK: Independently verify expected output against sample data.
+
+DAY 1 OUTCOME
+Q1: correct conceptual technique, wrong item-to-customer SQL execution.
+Q2: correct employee totals, incorrectly GROUPed department AVG by employee.
+Q3: correct first attempt, with only round-before-filter precision issue.
+Q4: correct metric intent, missing necessary order-grain aggregation.
+
+NEXT: Day 1 repair checkpoints: grain identification -> debug CTE/grain errors
+      -> independent short questions -> delayed retention check.
+===============================================================================
+*/
