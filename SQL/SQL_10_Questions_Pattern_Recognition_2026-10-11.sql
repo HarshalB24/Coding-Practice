@@ -1,3 +1,13 @@
+-- ============================================================================
+-- SQL PATTERN RECOGNITION & MISTAKE BANK — FULL-QUESTION EDITION
+-- UPDATED: 2026-10-18 | MySQL 8+
+-- Contains 19 documented exercises from the supplied bank.
+-- NEW: Each exercise begins with a complete question statement and PATTERN TYPE.
+-- PRESERVED: Original attempts, commentary, mistakes, explanations and solutions.
+-- NOTE: Exercises rely on their own sample tables; run queries one at a time.
+-- Some same-named tables have different schemas in different exercises.
+-- ============================================================================
+
 /*
 ================================================================================
  SQL INTERVIEW PATTERN RECOGNITION | 10-QUESTION PRACTICE REVIEW
@@ -40,6 +50,13 @@
 
 /* =============================================================================
  Q01 | MULTI-LEVEL AGGREGATION — MONTHLY TOTALS VS THEIR AVERAGE
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given Sales(sale_id, product_id, sale_date, amount), find each product whose largest monthly
+revenue total is strictly greater than twice its average monthly revenue total. Aggregate by
+product and calendar year-month (never merge the same month from different years), and
+average only months with sales. Return each qualifying product_id once.
+PATTERN TYPE: Multi-level aggregation / aggregate of grouped totals
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Schema: Sales(sale_id, product_id, sale_date, amount)
  Requirement: Return products whose MAXIMUM monthly total sales amount is greater
@@ -93,6 +110,13 @@ HAVING MAX(monthly_revenue) > 2 * AVG(monthly_revenue);
 
 /* =============================================================================
  Q02 | LEAD — LOGIN IMMEDIATELY FOLLOWED BY PURCHASE
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given UserEvents(event_id, user_id, event_time, event_type), return distinct user_id values
+for users with at least one login event immediately followed by a purchase event. Sequence
+events separately for each user by event_time, then event_id to resolve ties. A login
+anywhere in the history may qualify; intervening events disqualify that particular login.
+PATTERN TYPE: Event-sequence analysis / LEAD / immediate next event
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Schema: UserEvents(event_id, user_id, event_time, event_type)
  Requirement: Find distinct users for whom ANY login is IMMEDIATELY followed by
@@ -134,6 +158,13 @@ WHERE event_type = 'login'
 
 /* =============================================================================
  Q03 | COMPLETE 7-DAY ROLLING SUM
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given DailyActivity(activity_date DATE, active_users INT), with exactly one record for every
+consecutive calendar date, calculate the sum of active_users over the current date and six
+prior calendar dates. Show only complete seven-day windows, ordered by activity_date.
+active_users is a numeric daily count, not a user identifier.
+PATTERN TYPE: Rolling window aggregation / explicit ROWS frame
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Schema: DailyActivity(activity_date DATE, active_users INT)
  IMPORTANT DATA CONTRACT: exactly ONE ROW for EVERY calendar day; consecutive
@@ -181,6 +212,13 @@ ORDER BY activity_date;
 
 /* =============================================================================
  Q04 | ANTI-JOIN — CUSTOMERS WHO NEVER ORDERED
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given Customers(customer_id, customer_name) and Orders(order_id, customer_id, order_date),
+return customer_id and customer_name for customers who have never placed an order.
+Customers: 101 Alice, 102 Bob, 103 Charlie, 104 David, 105 Emma. Orders belong to customers
+101 (twice), 103, and 105. Expected customers: 102 Bob and 104 David.
+PATTERN TYPE: Anti-join / missing matches / NOT EXISTS
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Customers(customer_id, customer_name)
  Orders(order_id, customer_id, order_date)
@@ -229,6 +267,13 @@ WHERE NOT EXISTS (
 
 /* =============================================================================
  Q05 | LATEST CUSTOMER EMAIL / DETERMINISTIC DEDUPLICATION
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given CustomerUpdates(update_id, customer_id, email, updated_at), return exactly one row per
+customer showing the most recently updated email address. Rank by updated_at descending;
+when two timestamps tie, select the higher update_id. Output customer_id and email. Sample
+output: 101 alice_final@mail.com; 102 bob_new@mail.com; 103 charlie@mail.com.
+PATTERN TYPE: Latest record per entity / deterministic ROW_NUMBER deduplication
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  CustomerUpdates(update_id, customer_id, email, updated_at)
  Samples: (1,101,alice_old@mail.com,2026-10-01 10:00)
@@ -276,6 +321,13 @@ WHERE rn = 1;
 
 /* =============================================================================
  Q06 | AT LEAST THREE CONSECUTIVE CALENDAR LOGIN DAYS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given Logins(user_id, login_date), find distinct users who logged in on at least three
+consecutive calendar dates. Input has at most one login per user per day. Sample dates: user
+101 Oct 1,2,3,5; user 102 Oct 1,3,4; user 103 Oct 2,3,4 (all 2026). Expected user_id values:
+101 and 103.
+PATTERN TYPE: Consecutive calendar days / LEAD or LAG date comparisons
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Logins(user_id, login_date)
  Samples: 101: Oct 1,2,3,5; 102: Oct 1,3,4; 103: Oct 2,3,4 (2026).
@@ -343,6 +395,14 @@ WHERE DATEDIFF(login_date, prev_1) = 1
 
 /* =============================================================================
  Q07 | CONDITIONAL AGGREGATION — ZERO COMPLETED VS ZERO ORDERS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given Orders(order_id, customer_id, status, amount), show every customer present in Orders
+with their total_orders (all statuses), completed_orders, completed_amount, and
+completion_rate as a percentage rounded to two decimals. Customers with no COMPLETED orders
+must still appear; this does not require customers who have never ordered. Expected:
+101=(3,2,800,66.67); 102=(2,0,0,0.00); 103=(3,2,1000,66.67).
+PATTERN TYPE: Conditional aggregation / business eligibility / percentage metric
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  Orders(order_id, customer_id, status, amount)
  Samples: (1,101,completed,500), (2,101,cancelled,200),
@@ -422,6 +482,14 @@ GROUP BY c.customer_id;
 
 /* =============================================================================
  Q08 | TOP 2 DISTINCT SALARY LEVELS WITH TIES
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given EmployeeSalary(employee_id, department_id, salary), return employees paid at either of
+the two highest distinct salary levels within their own department, including all employees
+tied at either level. Output employee_id, department_id, salary. Sample: dept 10 salaries
+90000,80000,80000,70000; dept 20 salaries 95000,85000,85000,75000. Expected employee IDs:
+101,102,103,105,106,107.
+PATTERN TYPE: Top-N DISTINCT values with ties / DENSE_RANK
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  EmployeeSalary(employee_id, department_id, salary)
  Samples: dept10 (101,90000), (102,80000), (103,80000), (104,70000);
@@ -464,6 +532,14 @@ WHERE salary_rank <= 2;
 
 /* =============================================================================
  Q09 | EVERY REQUIRED WAREHOUSE — SET COMPLETENESS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given ProductInventory(product_id, warehouse_id) and RequiredWarehouses(warehouse_id),
+return products present in EVERY required warehouse. Duplicates in inventory must not affect
+the result and products may be stocked in non-required warehouses. Required warehouses:
+W1,W2,W3. Sample: 101=W1,W2,W3; 102=W1,W2; 103=W1,W2,W3; 104=W3. Expected product IDs: 101
+and 103.
+PATTERN TYPE: Set completeness / relational division / distinct matching
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  ProductInventory(product_id, warehouse_id)
  Samples: 101-W1,W2,W3; 102-W1,W2; 103-W1,W2,W3; 104-W3.
@@ -524,6 +600,14 @@ WHERE NOT EXISTS (
 
 /* =============================================================================
  Q10 | AS-OF-DATE CUSTOMER STATUS — LATEST VALID RECORD PER CUSTOMER
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given CustomerStatusHistory(record_id, customer_id, status, effective_date), produce one row
+for EVERY distinct customer occurring in the history, with the latest status effective on or
+before 2026-10-10. Use highest record_id to break same-date ties. If a customer has no valid
+record by that date, return status_as_of_date=unknown. Expected: 101 inactive, 102 active,
+103 active, 104 unknown, 105 inactive.
+PATTERN TYPE: As-of-date snapshot / filtered latest row / population-preserving join
+-------------------------------------------------------------------------------
  -----------------------------------------------------------------------------
  CustomerStatusHistory(record_id, customer_id, status, effective_date)
  Samples: (1,101,active,2026-09-01), (2,101,inactive,2026-10-05),
@@ -638,6 +722,14 @@ ORDER BY c.customer_id;
 
 -- ###########################################################################
 -- Q1: YEAR-OVER-YEAR REVENUE GROWTH
+-- FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+-- Given Orders(order_id, product_id, order_date, revenue), return each product-year with
+-- yearly_revenue and YoY growth percentage rounded to two decimals, comparing against the
+-- immediately preceding CALENDAR year. Return NULL for missing previous year or zero
+-- previous-year revenue. Sample: P1=2023:1500,2024:3000,2025:4500; P2=2024:800,2025:1200;
+-- P3=2025:2000. Expected growth: P1=NULL,100.00,50.00; P2=NULL,50.00; P3=NULL.
+-- PATTERN TYPE: Year-over-year percentage growth / year grain / LAG + calendar continuity
+-- ---------------------------------------------------------------------------
 -- ###########################################################################
 -- INPUT: Orders(order_id, product_id, order_date, revenue)
 -- REQUIREMENT: For each product and year with orders, show yearly revenue and
@@ -722,6 +814,15 @@ ORDER BY product_id, sales_year;
 
 -- ###########################################################################
 -- Q2: MONTH-OVER-MONTH PAYMENT GROWTH
+-- FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+-- Given Payments(payment_id, merchant_id, payment_date, amount), return one row per merchant
+-- and calendar month with payments: monthly_amount and MoM percentage change versus the
+-- immediately preceding CALENDAR month. Missing previous month or zero previous amount =>
+-- NULL; round to 2 decimals. M1 monthly totals: Nov 2025=1500, Dec 2025=1800, Jan 2026=1500;
+-- M2 Nov 2025=800, Jan 2026=1200; M3 Dec 2025=500. M2 Jan 2026 growth must be NULL because
+-- Dec is missing.
+-- PATTERN TYPE: Month-over-month percentage growth / monthly grouping / LAG + missing-month check
+-- ---------------------------------------------------------------------------
 -- ###########################################################################
 -- INPUT: Payments(payment_id, merchant_id, payment_date, amount)
 -- REQUIREMENT: For every merchant-month containing payments, report total
@@ -808,6 +909,14 @@ ORDER BY merchant_id, month_start;
 
 -- ###########################################################################
 -- Q3: GAPS & ISLANDS — ALL MAXIMAL CONSECUTIVE-DAY LOGIN STREAKS
+-- FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+-- Given UserLogins(user_id, login_date) with at most one login per user per day, return EVERY
+-- maximal streak of at least two consecutive calendar login days. Output user_id,
+-- streak_start, streak_end, streak_length, ordered by user and start. For user 101, dates Oct
+-- 1,2,3,5,6; for 102, Oct 1,3; for 103, Oct 2,3,4,5 (2026). Expected streaks: 101 Oct1–3
+-- length3; 101 Oct5–6 length2; 103 Oct2–5 length4.
+-- PATTERN TYPE: Gaps and Islands / consecutive-day streak grouping
+-- ---------------------------------------------------------------------------
 -- ###########################################################################
 -- INPUT: UserLogins(user_id, login_date)
 -- ASSUMPTION: At most one login row per user per calendar date.
@@ -898,7 +1007,7 @@ ORDER BY user_id, streak_start;
 
 
 
-13/10/2026:
+-- 13/10/2026:
 /*
 ===============================================================================
 STAGE 1 | P1 CONCEPT 1 — MULTI-LEVEL AGGREGATION & GRAIN TRANSITIONS
@@ -926,6 +1035,15 @@ MASTER RULES
 
 -------------------------------------------------------------------------------
 Q1 — EMPLOYEE PROJECT HOURS / HIGHEST PROJECT TOTAL VS AVG PROJECT TOTAL
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given EmployeeProjects(employee_id, project_id, hours_worked), find employees whose highest
+SUM of hours on any one project is strictly greater than 1.1 times their average total hours
+per project. Multiple work logs can belong to the same employee-project pair. Only projects
+with logs count. Sample includes employee 101 with project totals 30,30; employee 102 with
+40,30; employee 103 with 15,15. Expected employee: 102. Note: 1.1x is the corrected
+threshold from the original 1.5x draft.
+PATTERN TYPE: Multi-stage aggregation / project totals compared to own project average
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 TABLE: EmployeeProjects(employee_id, project_id, hours_worked)
 ROWS:
@@ -985,6 +1103,14 @@ ORDER BY employee_id;
 /*
 -------------------------------------------------------------------------------
 Q2 — ORDER ITEMS / HIGHEST ORDER TOTAL VS AVG ORDER TOTAL
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given OrderItems(order_id, customer_id, product_id, quantity, unit_price), compute each
+order total by summing quantity*unit_price across line items. Return customers whose maximum
+order total is STRICTLY greater than 1.5 times their average order total. Sample C1 has
+orders 500,200,300; C2 has orders 400,200; C3 has order 500. Expected output is EMPTY: C1
+max=500 equals (not greater than) 1.5*333.33.
+PATTERN TYPE: Aggregate of order-line totals / customer MAX vs AVG order value
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 TABLE: OrderItems(order_id, customer_id, product_id, quantity, unit_price)
 DATA:
@@ -1079,6 +1205,14 @@ MENTAL TRIGGER: What is ONE equally weighted observation in this AVG?
 If one order => order grain. If one customer => customer grain.
 -------------------------------------------------------------------------------
 Q3 — STORE TRANSACTIONS / STORE AVG DAILY VS AVG OF STORE AVGS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given StoreTransactions(transaction_id, store_id, transaction_date, revenue), consider only
+active transaction dates. Compute each store's average DAILY revenue, then return stores
+whose store-level average is greater than the equally weighted average of the stores' daily
+averages. Output store_id and avg_daily_revenue rounded to 2 decimals. Sample store daily
+averages: S1=300, S2=400, S3=500; benchmark=400. Expected S3,500.00.
+PATTERN TYPE: Weighted-vs-unweighted average / aggregate daily then per-store then global
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 TABLE: StoreTransactions(transaction_id,store_id,transaction_date,revenue)
 DATA:
@@ -1134,6 +1268,14 @@ ORDER BY store_id;
 /*
 -------------------------------------------------------------------------------
 Q4 — DRIVER DELIVERIES / ADDITIONAL MASTERY CHECKPOINT
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given DeliveryRecords(delivery_id, driver_id, delivery_date, earnings), calculate each
+driver's average DAILY earnings over days with deliveries, then compare with the equally
+weighted average of all drivers' daily averages. Output qualifying driver IDs and their
+average daily earnings to two decimals. Samples: D1 average 300, D2 average 400, D3 average
+500. Expected D3,500.00.
+PATTERN TYPE: Multi-stage aggregation / driver daily earnings vs overall driver mean
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 TABLE: DeliveryRecords(delivery_id,driver_id,delivery_date,earnings)
 DATA:
@@ -1191,6 +1333,14 @@ ORDER BY driver_id;
 /*
 -------------------------------------------------------------------------------
 Q5 — E-COMMERCE / HIGHEST-SPENDING CUSTOMER PER CATEGORY (WITH TIES)
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given OrderItems(order_id, customer_id, category, quantity, unit_price), calculate each
+customer's total spend in each category across all orders. Return every customer tied for
+the highest total spend WITHIN each category. Output category, customer_id, total_spent.
+Sample expected Clothing C2 700 and Electronics C1 1800. This OrderItems schema is separate
+from the earlier order-total exercise.
+PATTERN TYPE: Multi-level aggregation plus tie-aware ranking / category competition
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 TABLE: OrderItems(order_id,customer_id,category,quantity,unit_price)
 IMPORTANT: This is a SEPARATE scenario/table schema from Q2. Run each case
@@ -1291,6 +1441,7 @@ code precision; do not mark the entire P1 track mastered yet.
 */
 
 
+/*
 14/10/2026:
 AVOID NEXT TIME:
 - Never GROUP BY away rows before ranking them.
@@ -1300,6 +1451,15 @@ AVOID NEXT TIME:
 
 ===============================================================================
 Q2 — INVALID CONSECUTIVE ORDER STATUS TRANSITIONS
+FULL PRACTICE QUESTION (READ BEFORE YOUR ATTEMPT):
+Given OrderStatusHistory(event_id, order_id, status, event_time), return distinct orders
+with at least one INVALID immediately adjacent status transition. Only valid pairs:
+created->shipped and shipped->delivered. Sequence per order by event_time, then event_id.
+Ignore final events without successors and single-event orders. Sample O101
+created->shipped->delivered; O102 created->delivered; O103 created->shipped; O104 shipped
+only. Expected: O102.
+PATTERN TYPE: Invalid adjacent state transitions / deterministic LEAD + rule exclusion
+-------------------------------------------------------------------------------
 ===============================================================================
 TABLE: OrderStatusHistory(event_id, order_id, status, event_time)
 
