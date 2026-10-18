@@ -1955,3 +1955,325 @@ NEXT: Day 1 repair checkpoints: grain identification -> debug CTE/grain errors
       -> independent short questions -> delayed retention check.
 ===============================================================================
 */
+
+
+
+STAGE 1 MAESTERY : 
+/*
+===============================================================================
+STAGE 1 | P1 CONCEPT 1 — REINFORCEMENT & MASTERY CHECK
+Practice revision bank | 18 October 2026 | Dialect: MySQL 8+
+===============================================================================
+PURPOSE
+- APPEND this section after the four original Day 1 questions.
+- Preserve MY attempts, mistakes, and correct solutions from five subsequent checks.
+- Original attempts are kept in comments; corrected SQL follows each block.
+- Different questions may require different source-table schemas; run separately.
+
+MASTER RULES
+1. Grain is defined by what a row represents, not by what columns happen to exist.
+2. SUM per day/entity first, AVG daily totals per entity second, and AVG those
+   entity averages within the benchmark group third when required.
+3. GROUP BY collapses rows; AVG() OVER(PARTITION BY ...) attaches a benchmark
+   while preserving the input grain.
+4. A new CTE is necessary whenever a metric needs a different row grain.
+5. Every selected nonaggregated column in a grouped query must be a group key.
+6. Filter with existing CTE columns; a SELECT alias isn't available to WHERE.
+7. Apply strict comparisons to original values; ROUND only in the projection.
+===============================================================================
+*/
+
+/*
+-------------------------------------------------------------------------------
+R1 — RESTAURANT REVENUE GREATER THAN CITY AVERAGE
+FULL QUESTION: DeliveryOrders(order_id, restaurant_id, city, order_amount).
+Return restaurants whose SUM(order_amount) is strictly greater than the
+average of restaurant-level revenue totals in their city. Every restaurant
+has equal weight. Return restaurant_id, city, total_revenue, city_avg_revenue.
+DATA: (1,R1,Bengaluru,200),(2,R1,Bengaluru,400),
+(3,R2,Bengaluru,500),(4,R2,Bengaluru,300),
+(5,R3,Mumbai,600),(6,R3,Mumbai,200),
+(7,R4,Mumbai,300),(8,R4,Mumbai,100).
+EXPECTED: R2 Bengaluru 800 700.00; R3 Mumbai 800 600.00.
+PATTERN TYPE: Entity SUM -> peer-group AVG window -> row filter.
+MY REASONING: Raw one/order; intermediate restaurant revenue then city average;
+final one qualifying restaurant; use SUM/GROUP BY and AVG OVER city.
+MY ORIGINAL SQL (preserved):
+with rest_rev as (
+Select restaurant_id , city ,sum(order_amount) as revenue
+from deliveryorders
+group by restaurant_id,city
+),city_Avg as (
+select restaurant_id , city , revenue, avg(revenue) over (partition by city) as city_avg_rev
+from rest_rev
+)
+select restaurant_id , city , revenue , round(city_avg_rev,2) as city_avg_rev
+from city_Avg
+where revenue > city_Avg_rev
+
+ASSESSMENT: LOGIC AND QUERY CORRECT. No substantive error. The expected
+output column names asked for total_revenue and city_avg_revenue; the query
+used revenue and city_avg_rev, which is a presentation-name difference only.
+CORRECT GRAINS: order -> restaurant+city revenue -> restaurant+city with
+city benchmark -> qualifying restaurant.
+AVOID: unnecessarily adding GROUP BY in the window stage.
+-------------------------------------------------------------------------------
+*/
+WITH rest_rev AS (
+    SELECT restaurant_id, city, SUM(order_amount) AS total_revenue
+    FROM DeliveryOrders
+    GROUP BY restaurant_id, city
+), city_avg AS (
+    SELECT restaurant_id, city, total_revenue,
+           AVG(total_revenue) OVER (PARTITION BY city) AS city_avg_revenue
+    FROM rest_rev
+)
+SELECT restaurant_id, city, total_revenue,
+       ROUND(city_avg_revenue, 2) AS city_avg_revenue
+FROM city_avg
+WHERE total_revenue > city_avg_revenue
+ORDER BY city, restaurant_id;
+
+/*
+-------------------------------------------------------------------------------
+R2 — BANK ACCOUNTS: AVERAGE ACTIVE-DAY AMOUNT VS BRANCH AVERAGE
+FULL QUESTION: BankTransactions(transaction_id,account_id,branch_id,
+transaction_date,amount). Find accounts whose average DAILY transaction total
+(across active days) exceeds the equally weighted average of account-level
+daily averages within the same branch. Return account_id, branch_id,
+avg_daily_amount, branch_avg_daily_amount; use unrounded comparisons.
+DATA: (1,A1,B1,2026-10-01,100),(2,A1,B1,2026-10-01,200),
+(3,A1,B1,2026-10-02,300),(4,A2,B1,2026-10-01,500),
+(5,A2,B1,2026-10-02,100),(6,A3,B2,2026-10-01,400),
+(7,A3,B2,2026-10-02,200),(8,A4,B2,2026-10-01,300).
+EXPECTED: EMPTY (all account averages and both branch benchmarks are 300).
+PATTERN TYPE: Three-grain SUM -> AVG -> AVG OVER(PARTITION BY branch).
+MY REASONING: Daily total per account, average per account, then branch
+average of account averages; compare account to branch.
+MY ORIGINAL SQL (preserved):
+with daily_amt as (
+Select account_id , branch_id , transaction_date, sum(amount) as total_Daily
+from banktransactions
+group by  account_id , branch_id , transaction_date
+),avg_daily  as (
+select  account_id , branch_id , transaction_date,avg(total_daily) as avg_daily_amnt , avg(total_daily) over (partition by branch_id) as branch_avg_daily_amount
+from daily_amt
+)
+Select  account_id , branch_id , round(avg_daily_amnt ,2) as avg_daily_amount , round(branch_avg_daily_amount,2) as branch_avg_daily_amount
+from avg_daily
+where avg_daily_amount > branch_Avg_daily_amount
+
+MISTAKES:
+- Raw grain initially described as account+branch; actual grain is TRANSACTION.
+- AVG(total_daily) without GROUP BY account_id,branch_id mixes aggregate rows
+  with nonaggregated account/date columns.
+- The branch window averages daily rows, not one ACCOUNT AVERAGE per account;
+  accounts with more active days would be overweighted.
+- Final WHERE uses avg_daily_amount (alias from SELECT), not a source CTE
+  field; MySQL can't reference it in WHERE.
+CORRECT GRAINS: transaction -> account+date -> account -> account with branch
+benchmark -> qualifying account.
+AVOID: combining average-per-account and average-of-accounts in the same CTE.
+-------------------------------------------------------------------------------
+*/
+WITH daily_amt AS (
+    SELECT account_id, branch_id, transaction_date,
+           SUM(amount) AS total_daily
+    FROM BankTransactions
+    GROUP BY account_id, branch_id, transaction_date
+), account_avg AS (
+    SELECT account_id, branch_id,
+           AVG(total_daily) AS avg_daily_amount
+    FROM daily_amt
+    GROUP BY account_id, branch_id
+), branch_avg AS (
+    SELECT account_id, branch_id, avg_daily_amount,
+           AVG(avg_daily_amount) OVER (PARTITION BY branch_id)
+               AS branch_avg_daily_amount
+    FROM account_avg
+)
+SELECT account_id, branch_id,
+       ROUND(avg_daily_amount, 2) AS avg_daily_amount,
+       ROUND(branch_avg_daily_amount, 2) AS branch_avg_daily_amount
+FROM branch_avg
+WHERE avg_daily_amount > branch_avg_daily_amount
+ORDER BY account_id;
+
+/*
+-------------------------------------------------------------------------------
+R3 — STORE DAILY REVENUE VS REGIONAL BENCHMARK
+FULL QUESTION: StoreTransactions(transaction_id,store_id,region_id,
+transaction_date,revenue). Multiple transactions occur per store/day.
+Return stores whose average DAILY total across active days is strictly
+higher than the equal-weight average of store daily averages in their region.
+Return store_id, region_id, avg_daily_revenue, region_avg_daily_revenue.
+DATA: (1,S1,North,2026-10-01,100),(2,S1,North,2026-10-01,200),
+(3,S1,North,2026-10-02,500),(4,S2,North,2026-10-01,200),
+(5,S2,North,2026-10-03,400),(6,S3,South,2026-10-01,600),
+(7,S3,South,2026-10-02,200),(8,S4,South,2026-10-01,300).
+EXPECTED: S1 North 400.00 350.00; S3 South 400.00 350.00.
+PATTERN TYPE: Three-level SUM -> AVG -> peer-group AVG window.
+MY ORIGINAL SQL (preserved):
+with store_rev as (
+select store_id , region_id , transaction_date , sum(revenue) as total_rev
+from storetransactions
+group by store_id , region_id , transaction_Date
+),avg_daily_Rev as (
+Select store_id , region_id , avg(total_rev) as avg_daily_rev
+from store_rev
+group by store_id , region_id
+),region_rev as (
+Select store_id , region_id ,avg_daily_rev,  avg(avg_daily_rev) over (partition by region_id) as region_avg_daily_rev
+from avg_daily_rev
+)
+select store_id , region_id , round(avg_daily_rev,2) as avg_daily_rev , round(region_Avg_daily_rev,2) as region_avg_daily_Rev
+from region_Rev
+where avg_daily_Rev > region_Avg_daily_Rev
+
+ASSESSMENT: Correct first attempt for all grain transitions, CTEs and
+unrounded WHERE comparison. The requested ORDER BY region_id,store_id was
+omitted (output formatting only).
+CORRECT GRAINS: transaction -> store+active-date -> store average -> store
+with region benchmark -> qualifying store.
+MEMORY TRIGGER: one stage per distinct metric grain; preserve store rows
+with AVG OVER(PARTITION BY region).
+-------------------------------------------------------------------------------
+*/
+WITH store_rev AS (
+    SELECT store_id, region_id, transaction_date,
+           SUM(revenue) AS total_rev
+    FROM StoreTransactions
+    GROUP BY store_id, region_id, transaction_date
+), avg_daily_rev AS (
+    SELECT store_id, region_id, AVG(total_rev) AS avg_daily_rev
+    FROM store_rev
+    GROUP BY store_id, region_id
+), region_rev AS (
+    SELECT store_id, region_id, avg_daily_rev,
+           AVG(avg_daily_rev) OVER (PARTITION BY region_id)
+               AS region_avg_daily_rev
+    FROM avg_daily_rev
+)
+SELECT store_id, region_id,
+       ROUND(avg_daily_rev, 2) AS avg_daily_revenue,
+       ROUND(region_avg_daily_rev, 2) AS region_avg_daily_revenue
+FROM region_rev
+WHERE avg_daily_rev > region_avg_daily_rev
+ORDER BY region_id, store_id;
+
+/*
+-------------------------------------------------------------------------------
+R4 — PAYMENTS: DEBUG AN INVALID GROUP BY
+FULL QUESTION: Payments(payment_id,customer_id,payment_date,amount).
+Find one row per customer with SUM(amount) as total_amount and AVG(amount)
+as avg_amount. Diagnose and rewrite the invalid SQL below.
+DATA: (1,C1,2026-10-01,100),(2,C1,2026-10-02,200),
+(3,C1,2026-10-03,300),(4,C2,2026-10-01,400),
+(5,C2,2026-10-02,200),(6,C3,2026-10-01,500).
+EXPECTED: C1 600 200.00; C2 600 300.00; C3 500 500.00.
+PATTERN TYPE: Single-grain GROUP BY / invalid projected columns.
+INCORRECT QUERY PROVIDED FOR DEBUGGING:
+SELECT customer_id, payment_date, amount,
+       SUM(amount) AS total_amount, AVG(amount) AS avg_amount
+FROM Payments
+GROUP BY customer_id;
+MY DIAGNOSIS: 'the wrong thing is we dont have payment_date, amount in group
+by clause'.
+MY CORRECTED SQL (preserved):
+select customer_id , sum(amount) as total_amount ,
+avg(amount) as avg_amount
+from payments
+group by customer_id
+
+ASSESSMENT: PASSED. The correct fix is to remove payment_date and raw amount
+from SELECT, NOT add them to GROUP BY (which would change the grain).
+MEMORY TRIGGER: GROUP BY customer_id -> select group keys and aggregates only.
+-------------------------------------------------------------------------------
+*/
+SELECT customer_id,
+       SUM(amount) AS total_amount,
+       ROUND(AVG(amount), 2) AS avg_amount
+FROM Payments
+GROUP BY customer_id
+ORDER BY customer_id;
+
+/*
+-------------------------------------------------------------------------------
+R5 — CAMPAIGN DAILY SPEND VS ADVERTISER CAMPAIGN BENCHMARK
+FULL QUESTION: CampaignTransactions(transaction_id,campaign_id,advertiser_id,
+transaction_date,spend). Find campaigns whose average daily spending across
+active days exceeds the equal-weight average of the CAMPAIGN-level daily
+averages for that advertiser. Return campaign_id, advertiser_id,
+avg_daily_spend, advertiser_avg_daily_spend; compare unrounded values.
+DATA: (1,C1,A1,2026-10-01,100),(2,C1,A1,2026-10-01,200),
+(3,C1,A1,2026-10-02,300),(4,C2,A1,2026-10-01,200),
+(5,C2,A1,2026-10-03,200),(6,C3,A2,2026-10-01,500),
+(7,C3,A2,2026-10-02,300),(8,C4,A2,2026-10-01,200).
+EXPECTED (corrected after original prompt error): C1 A1 300.00 250.00;
+C3 A2 400.00 300.00.
+PATTERN TYPE: Three-stage aggregation / final SELECT-alias filtering.
+MY ORIGINAL SQL (preserved):
+with daily_spend as (
+select campaign_id , advertiser_id , transaction_Date, sum(spend) as daily_Spend
+from campaigntransactions
+group by campaign_id ,advertiser_id , transaction_date
+),avg_Daily as (
+Select campaign_id , advertiser_id , avg(daily_spend) as avg_daily
+from daily_spend
+group by campaign_id , advertiser_id
+),avg_adver as (
+select campaign_id , advertiser_id , avg_daily , avg(avg_daily) over (partition by advertiser_id) as adv_avg_Daily
+from avg_daily
+)
+Select campaign_id , advertiser_id , round(avg_Daily,2) as avg_Daily_spend, round(adv_avg_Daily,2) as advertiser_avg_daily_spend
+from avg_adver
+where avg_Daily_spend > advertiser_avg_daily_Spend
+order by advertiser_id , campaign_id
+
+ASSESSMENT: All three grain transitions and metric logic were CORRECT.
+Only issue: WHERE uses avg_Daily_spend and advertiser_avg_daily_spend,
+which are aliases newly defined in the SAME SELECT. Use existing avg_daily
+and adv_avg_daily from avg_adver instead. Filtering those unrounded columns
+also preserves the strict comparison correctly.
+CORRECT GRAINS: transaction -> campaign+active-date -> campaign average ->
+campaign with advertiser benchmark -> qualifying campaign.
+AVOID: comparing formatted/rounded SELECT aliases within WHERE.
+-------------------------------------------------------------------------------
+*/
+WITH daily_spend AS (
+    SELECT campaign_id, advertiser_id, transaction_date,
+           SUM(spend) AS daily_spend
+    FROM CampaignTransactions
+    GROUP BY campaign_id, advertiser_id, transaction_date
+), avg_daily AS (
+    SELECT campaign_id, advertiser_id,
+           AVG(daily_spend) AS avg_daily
+    FROM daily_spend
+    GROUP BY campaign_id, advertiser_id
+), avg_adver AS (
+    SELECT campaign_id, advertiser_id, avg_daily,
+           AVG(avg_daily) OVER (PARTITION BY advertiser_id)
+               AS adv_avg_daily
+    FROM avg_daily
+)
+SELECT campaign_id, advertiser_id,
+       ROUND(avg_daily, 2) AS avg_daily_spend,
+       ROUND(adv_avg_daily, 2) AS advertiser_avg_daily_spend
+FROM avg_adver
+WHERE avg_daily > adv_avg_daily
+ORDER BY advertiser_id, campaign_id;
+
+/*
+===============================================================================
+REINFORCEMENT SUMMARY
+R1 Restaurant: pass, SUM per restaurant -> city average correctly.
+R2 Bank: fail, account average and branch average improperly combined.
+R3 Store: pass, all three grains correct (ordering omission).
+R4 Payments debug: pass, invalid non-grouped projected columns removed.
+R5 Campaign: grain logic pass, SELECT-alias reference in WHERE needs care.
+
+STATUS: Day 1 provisionally complete; delayed mixed retention still needed.
+KEEP ASKING: What does ONE row mean before and after each CTE? Which CTE
+contains the observations each AVG must weight equally?
+===============================================================================
+*/
