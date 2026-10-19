@@ -2277,3 +2277,578 @@ KEEP ASKING: What does ONE row mean before and after each CTE? Which CTE
 contains the observations each AVG must weight equally?
 ===============================================================================
 */
+
+
+19/10/2026 : 
+/*
+===============================================================================
+STAGE 1 | DAY 2 — COMPLETE SQL PATTERN & MISTAKE BANK
+TOPIC: LEFT JOINS, ANTI-JOINS, CONDITIONAL AGGREGATION, COUNTING GRAIN
+Dialect: MySQL 8+ | Prepared from the Day 2 coaching session
+===============================================================================
+HOW TO REVISE:
+1. Read QUESTION + SAMPLE DATA + EXPECTED OUTPUT first. Hide the SQL below.
+2. State raw/intermediate/final grains, then independently write your SQL.
+3. Compare with MY ORIGINAL ATTEMPT and DIAGNOSIS, then EXECUTABLE SOLUTION.
+4. Source tables are independent per exercise; run each solution separately.
+5. Important: errors marked as typos are NOT counted as conceptual failures.
+
+MASTER LESSONS:
+- FROM A LEFT JOIN B: all rows of A survive, even without matching B rows.
+- Choose the preserved population from the QUESTION, not the fact table.
+- COUNT(*) counts NULL-extended rows; COUNT(matched_id) gives zero for no match.
+- COUNT(DISTINCT entity_id) counts entities, SUM(CASE ...) counts events.
+- COUNT(DISTINCT reference_table.id) ignores IDs absent from valid reference set.
+- SUM() can be NULL when no rows contribute; COALESCE when zero is needed.
+- For valid/required categories, check matches against the reference table.
+- Only columns projected by a CTE are visible to downstream SQL.
+- Compare SQL aliases CHARACTER BY CHARACTER; use status values from data.
+- Read business rules carefully: attempts != successful distinct shipments.
+===============================================================================
+*/
+
+/*
+===============================================================================
+Q1 — E-COMMERCE CUSTOMERS WITH NO ORDERS (ANTI-JOIN)
+SCHEMA: Customers(customer_id, customer_name)
+        Orders(order_id, customer_id, order_date, amount)
+Customers: (101,Alice),(102,Bob),(103,Charlie),(104,David),(105,Emma),
+           (106,Frank)
+Orders: (1,101,2026-10-01,500),(2,101,2026-10-03,300),
+        (3,103,2026-10-02,700),(4,105,2026-10-04,200),
+        (5,105,2026-10-05,400),(6,106,2026-10-06,600)
+REQUIREMENT: All and only customers who have NEVER placed an order. Return
+customer_id, customer_name, sorted by customer_id. PKs unique, non-null.
+EXPECTED:
+102 | Bob
+104 | David
+GRAINS: Customers=customer, Orders=order, final=unmatched customer.
+PATTERN: Anti-join via LEFT JOIN + WHERE right-side PK IS NULL.
+
+MY ORIGINAL SQL (verbatim):
+select c.customer_id , c.customer_name from customers c
+left join orders o on c.customer_id=o.customer_id
+where o.order_id is null
+group by c.customer_id , c.customer_name
+
+DIAGNOSIS: Logic correct first attempt. GROUP BY is redundant because each
+qualifying customer already has a single null-extended row. Requested ORDER BY
+was omitted. No need to aggregate just to ensure uniqueness.
+===============================================================================
+*/
+SELECT c.customer_id, c.customer_name
+FROM Customers c
+LEFT JOIN Orders o ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL
+ORDER BY c.customer_id;
+
+/*
+===============================================================================
+Q2 — CUSTOMER ORDER PERFORMANCE (ALL CUSTOMERS)
+SCHEMA: Customers(customer_id,customer_name)
+        Orders(order_id,customer_id,status,amount)
+Customers: (101,Alice),(102,Bob),(103,Charlie),(104,David),(105,Emma)
+Orders: (1,101,completed,500),(2,101,cancelled,200),
+        (3,101,completed,300),(4,102,cancelled,150),
+        (5,102,pending,100),(6,103,completed,400),
+        (7,103,completed,600),(8,105,pending,250)
+REQUIREMENT: EVERY customer, total order count, completed order count,
+completed order amount, percent completed out of all orders rounded to 2dp.
+Zero-order customers have zeros for all metrics; sort customer_id.
+EXPECTED: customer_id | name | total | completed | amount | completion_rate
+101 | Alice   | 3 | 2 |  800 |  66.67
+102 | Bob     | 2 | 0 |    0 |   0.00
+103 | Charlie | 2 | 2 | 1000 | 100.00
+104 | David   | 0 | 0 |    0 |   0.00
+105 | Emma    | 1 | 0 |    0 |   0.00
+GRAINS: customer / order -> grouped customer with orders -> all customers.
+PATTERN: Aggregation before population-preserving LEFT JOIN, COALESCE,
+NULLIF-zero-safe division, conditional SUM(CASE ...).
+
+MY FIRST SQL (verbatim, incomplete as submitted):
+with cte as (
+select c.customer_id , c.customer_name ,count(*) as total_orders , sum(Case when o.status='completed' then 1 else 0 end) as completed_orders , sum(case when o.status='completed' then amount else 0 end ) as completed_amount
+from customers c join orders o on
+c.customer_id =o.customer_id
+group by c.customer_id , c.customer_name
+),zero_ord as (
+Select c.customer_id , c.customer_name , coalesce(total_orders,0) as total_orders , coalesce(completed_orders,0) as completed_orders ,coalesce(completed_amount,0) as completed_amount , round(completed_orders / total_orders)*100,2) as completion_Rate from cte c2
+left join customers c on
+c2.customer_id = c.customer_id
+group by c.customer_id , c.customer_name
+order by c.customer_id
+
+MY RETRY SQL (verbatim):
+with cte as (
+select c.customer_id , c.customer_name , count(*) as total_orders , sum(CASE WHEN o.status = 'completed' THEN 1 ELSE 0 END)             AS completed_orders,         SUM(CASE WHEN o.status = 'completed' THEN amount ELSE 0 END)             AS completed_amount from customers c join orders o on c.customer_id = o.customer_id
+group by c.customer_id , c.customer_name
+),all_cust as (
+Select c.customer_id , c.customer_name , coalesce(total_orders , 0) as total_orders , coalesce(completed_amount ,0) as completed_amount , coalesce(completed_orders,0) as completed_orders
+from customers c
+left join cte c2 on
+c.customer_id = c2.customer_id
+) select customer_id , customer_name, total_orders , completed_orders , completed_amount,
+coalesce(round(100.0 * compelted_orders / nullif(total_orders ,0),2),0) as completion_rate
+from all_custs
+order by customer_id
+
+DIAGNOSIS: First attempt reversed second LEFT JOIN and lost zero-order
+customers, malformed ROUND, CTE incomplete. Retry fixed preservation and
+zero-safe division correctly; only 'compelted_orders' and 'all_custs'
+are naming typos. COUNT(*) is fine IN the INNER-JOIN-only aggregate, but
+COUNT(o.order_id) should be used for a direct Customers LEFT JOIN Orders.
+===============================================================================
+*/
+WITH order_metrics AS (
+    SELECT customer_id,
+           COUNT(*) AS total_orders,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_orders,
+           SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) AS completed_amount
+    FROM Orders
+    GROUP BY customer_id
+), all_customers AS (
+    SELECT c.customer_id, c.customer_name,
+           COALESCE(o.total_orders, 0) AS total_orders,
+           COALESCE(o.completed_orders, 0) AS completed_orders,
+           COALESCE(o.completed_amount, 0) AS completed_amount
+    FROM Customers c
+    LEFT JOIN order_metrics o ON c.customer_id = o.customer_id
+)
+SELECT customer_id, customer_name, total_orders, completed_orders,
+       completed_amount,
+       COALESCE(ROUND(100.0 * completed_orders / NULLIF(total_orders, 0), 2), 0)
+           AS completion_rate
+FROM all_customers
+ORDER BY customer_id;
+
+/*
+===============================================================================
+Q3 — EMPLOYEE MANDATORY TRAINING COMPLIANCE
+SCHEMA: Employees(employee_id,employee_name,department)
+        TrainingCourses(course_id,course_name)  -- ALL are mandatory
+        TrainingCompletions(completion_id,employee_id,course_id)
+Employees: (E1,Alice,Engineering),(E2,Bob,Engineering),
+(E3,Charlie,Finance),(E4,David,Finance),(E5,Emma,HR),(E6,Frank,HR)
+Courses: (C1,Data Security),(C2,Workplace Safety),(C3,Compliance)
+Completions: (1,E1,C1),(2,E1,C2),(3,E1,C3),(4,E2,C1),(5,E2,C2),
+(6,E3,C1),(7,E3,C2),(8,E3,C3),(9,E4,C1),(10,E6,C1),(11,E6,C3)
+REQUIREMENT: Return employees missing >=1 mandatory course, including
+employees with ZERO completions. Duplicates of same completion count once;
+non-mandatory course IDs do not count. Return employee_id, employee_name,
+completed_courses, missing_courses sorted employee_id.
+EXPECTED: E2 Bob 2 1; E4 David 1 2; E5 Emma 0 3; E6 Frank 2 1.
+GRAINS: employee / mandatory course / completion event -> employee ->
+employee with scalar mandatory count -> noncompliant employee.
+PATTERN: Preserve entities; COUNT DISTINCT matched REFERENCE IDs; attach
+single-row benchmark via CROSS JOIN; missing=mandatory-completed.
+
+MY ORIGINAL SQL (verbatim):
+with cte as (
+select e.employee_id , e.employee_name,count(distinct t.course_id) as completed_course , count(distinct tc.course_id) as mandatory_course from employees e
+join training completions t on
+e.employee_id = t.employee_id
+left join trainingcompletions tc on
+tc.course_id=trainingcourses.course_id
+group by e.employee_id,e.employee_name)
+select employee_id , employee_name , completed_course , mandatory_count - count(trainingcourses.course_id) as missing_courses
+from cte
+order by employee_id
+
+MY RETRY SQL (verbatim):
+with mandatory_count as (
+Select count(distinct course_id) as total_courses from trainingcourses
+),
+all_emp as (
+select e.employee_id , e.employee_name ,count(distinct tc.course_id) as completed_courses from employees e left join trainingcompletions tc on
+e.employee_id=tc.employee_id
+left join trainingcourses c on
+tc.course_id=c.course_id
+group by e.employee_id,e.employee_name
+),
+emp_Stat as (
+select  ae.employee_id , ae.employee_name , ae.completed_courses , mc.total_courses - ae.completed_courses as missing_courses
+from all_emp e cross join mandatory_count mc
+)
+select employee_id , employee_name , completed_courses , missing_courses
+from emp_stat
+where missing_courses >0 order by employee_id
+
+DIAGNOSIS: Initial inner join lost Emma and joined invalid aliases/tables.
+Retry fixed join direction, staged CTEs, formula, CROSS JOIN and filter.
+Outstanding: count DISTINCT c.course_id (mandatory reference), not
+ tc.course_id (completion list), and use ae consistently in FROM all_emp ae.
+Important conceptual quiz eventually answered correctly: counting from
+reference table excludes unmatched/invalid records.
+===============================================================================
+*/
+WITH mandatory_count AS (
+    SELECT COUNT(DISTINCT course_id) AS total_courses
+    FROM TrainingCourses
+), all_emp AS (
+    SELECT e.employee_id, e.employee_name,
+           COUNT(DISTINCT c.course_id) AS completed_courses
+    FROM Employees e
+    LEFT JOIN TrainingCompletions tc ON e.employee_id = tc.employee_id
+    LEFT JOIN TrainingCourses c ON tc.course_id = c.course_id
+    GROUP BY e.employee_id, e.employee_name
+), emp_stat AS (
+    SELECT ae.employee_id, ae.employee_name, ae.completed_courses,
+           mc.total_courses - ae.completed_courses AS missing_courses
+    FROM all_emp ae
+    CROSS JOIN mandatory_count mc
+)
+SELECT employee_id, employee_name, completed_courses, missing_courses
+FROM emp_stat
+WHERE missing_courses > 0
+ORDER BY employee_id;
+
+/*
+===============================================================================
+Q4 — SUBSCRIPTION BILLING ANALYSIS
+SCHEMA: Customers(customer_id,customer_name)
+        Subscriptions(subscription_id,customer_id,plan_id)
+        Payments(payment_id,subscription_id,payment_status,amount)
+Customers: (C1,Alice),(C2,Bob),(C3,Charlie),(C4,David),(C5,Emma)
+Subscriptions: (S1,C1,P1),(S2,C1,P2),(S3,C2,P1),(S4,C3,P3),(S5,C5,P2)
+Payments: (1,S1,success,100),(2,S1,failed,100),(3,S2,success,200),
+(4,S3,failed,150),(5,S3,failed,150),(6,S4,success,300),
+(7,S4,success,300),(8,S5,pending,200)
+REQUIREMENT: EVERY customer, distinct subscription count, number of success
+payment EVENTS, success amounts sum, failed payment EVENTS; zeros for missing.
+EXPECTED: C1 Alice 2 2 300 1; C2 Bob 1 0 0 2;
+C3 Charlie 1 2 600 0; C4 David 0 0 0 0; C5 Emma 1 0 0 0.
+GRAINS: customer / subscription / payment -> one row per customer.
+PATTERN: two LEFT JOINs, COUNT DISTINCT subscription to avoid multiplication,
+conditional SUM for payment EVENT metrics.
+
+MY FINAL ORIGINAL SQL (verbatim):
+with cust as (
+select c.customer_id , c.customer_name , count(distinct s.subscription_id) as total_subscription , sum(case when p.payment_status='success' then 1 else 0 end) as successful_payments , sum(case when p.payment_status='success' then amount else 0 end) as successful_amount , sum(case when p.payment_status='failed' then 1 else 0 end) as failed_payments
+from customers c
+left join subscriptions s on
+c.customer_id=s.customer_id
+left join payments p on
+p.subscription_id=s.subscription_id
+group by c.customer_id,c.customer_name
+)
+select customer_id , customer_name ,total_subscriptions,successful_payments,successful_amount,failed_payment
+from cust
+
+DIAGNOSIS: All JOIN and metric logic correct. Typing/reference mismatch:
+total_subscription vs total_subscriptions; failed_payments vs failed_payment.
+Forgot ORDER BY customer_id. Initial submission simply stopped within CTE;
+then submitted this complete version.
+===============================================================================
+*/
+WITH cust AS (
+    SELECT c.customer_id, c.customer_name,
+           COUNT(DISTINCT s.subscription_id) AS total_subscriptions,
+           SUM(CASE WHEN p.payment_status = 'success' THEN 1 ELSE 0 END)
+               AS successful_payments,
+           SUM(CASE WHEN p.payment_status = 'success' THEN p.amount ELSE 0 END)
+               AS successful_amount,
+           SUM(CASE WHEN p.payment_status = 'failed' THEN 1 ELSE 0 END)
+               AS failed_payments
+    FROM Customers c
+    LEFT JOIN Subscriptions s ON c.customer_id = s.customer_id
+    LEFT JOIN Payments p ON s.subscription_id = p.subscription_id
+    GROUP BY c.customer_id, c.customer_name
+)
+SELECT customer_id, customer_name, total_subscriptions,
+       successful_payments, successful_amount, failed_payments
+FROM cust
+ORDER BY customer_id;
+
+/*
+===============================================================================
+Q5 — FINAL MASTERY: LOGISTICS DELIVERY PERFORMANCE BY HUB
+SCHEMA: Hubs(hub_id,hub_name)
+        Shipments(shipment_id,hub_id,shipment_date)
+        DeliveryAttempts(attempt_id,shipment_id,attempt_status,delivery_cost)
+Hubs: (H1,Bengaluru),(H2,Mumbai),(H3,Delhi),(H4,Pune),(H5,Hyderabad)
+Shipments: (S1,H1,2026-10-01),(S2,H1,2026-10-02),(S3,H1,2026-10-03),
+(S4,H2,2026-10-01),(S5,H2,2026-10-02),(S6,H3,2026-10-01),
+(S7,H5,2026-10-02)
+Attempts: (1,S1,failed,50),(2,S1,success,100),(3,S2,success,120),
+(4,S3,failed,40),(5,S4,failed,60),(6,S4,failed,70),
+(7,S5,success,150),(8,S6,success,200),(9,S7,pending,30)
+REQUIREMENT: EVERY hub; distinct number of shipments; distinct shipments
+having >=1 success attempt; total failed ATTEMPT records (including failures
+before eventual success); sum costs of SUCCESS attempts only; zeros if none.
+EXPECTED: hub | name | total_shipments | success_shipments | failed_attempts | cost
+H1 | Bengaluru | 3 | 2 | 2 | 220
+H2 | Mumbai    | 2 | 1 | 2 | 150
+H3 | Delhi     | 1 | 1 | 0 | 200
+H4 | Pune      | 0 | 0 | 0 |   0
+H5 | Hyderabad | 1 | 0 | 0 |   0
+GRAINS: hub / shipment / attempt -> hub (conditional DISTINCT shipment vs
+ordinary COUNT of attempts). Pattern: join fanout, entity vs event counting.
+
+MY ORIGINAL SQL (verbatim):
+with cte as (
+select h.hub_id , h.hub_name , count(distinct s.shipment_id) as total_shipments , sum(case when d.attempt_status='successful' then 1 else 0 end) as successful_shipements ,sum(Case when d.attempt_status='failed' then 1 else 0 end) as failed_attempts , sum(case when d.attempt_status='success' then delivery_cost else 0 end) as successful_Delivery_cost
+from hubs h left join shipments s on
+h.hub_id = s.hub_id
+left join deliveryattempts d on
+s.shipment_id=d.shipment_id
+group by h.hub_id , h.hub_name
+)
+select hub_id , hub_name , total_shipments , successful_shipements ,failed_shipments ,successful_delivery_cost
+From cte
+order by hub_id
+
+DIAGNOSIS: Joins, base preservation, distinct total shipments, failed EVENT
+sum, success cost sum, GROUP BY and ordering all correct. The requirement
+for successful shipments was MISREAD: count distinct successful SHIPMENTS,
+not successful ATTEMPTS. Literal status is 'success', not 'successful'.
+Two projected alias/reference mismatches: successful_shipements (typo),
+failed_shipments vs failed_attempts. Key lesson is requirement precision,
+not a failure of foundational JOIN understanding.
+===============================================================================
+*/
+WITH hub_performance AS (
+    SELECT h.hub_id, h.hub_name,
+           COUNT(DISTINCT s.shipment_id) AS total_shipments,
+           COUNT(DISTINCT CASE WHEN d.attempt_status = 'success'
+                               THEN s.shipment_id END) AS successful_shipments,
+           SUM(CASE WHEN d.attempt_status = 'failed' THEN 1 ELSE 0 END)
+               AS failed_attempts,
+           SUM(CASE WHEN d.attempt_status = 'success' THEN d.delivery_cost
+                    ELSE 0 END) AS successful_delivery_cost
+    FROM Hubs h
+    LEFT JOIN Shipments s ON h.hub_id = s.hub_id
+    LEFT JOIN DeliveryAttempts d ON s.shipment_id = d.shipment_id
+    GROUP BY h.hub_id, h.hub_name
+)
+SELECT hub_id, hub_name, total_shipments, successful_shipments,
+       failed_attempts, successful_delivery_cost
+FROM hub_performance
+ORDER BY hub_id;
+
+/*
+===============================================================================
+REINFORCEMENT R1 — WAREHOUSE INVENTORY MOVEMENTS
+SCHEMA: Warehouses(warehouse_id,warehouse_name)
+        InventoryMovements(movement_id,warehouse_id,movement_type,quantity)
+Warehouses: (W1,Bengaluru),(W2,Mumbai),(W3,Delhi),(W4,Pune),(W5,Hyderabad)
+Movements: (1,W1,IN,100),(2,W1,OUT,30),(3,W1,IN,50),
+(4,W2,OUT,20),(5,W2,IN,80),(6,W3,IN,200),(7,W3,OUT,60),
+(8,W5,OUT,25)
+REQUIREMENT: Every warehouse with movement count, IN quantity, OUT quantity,
+zero when absent; sort warehouse_id.
+EXPECTED: W1 Bengaluru 3 150 30; W2 Mumbai 2 80 20;
+W3 Delhi 2 200 60; W4 Pune 0 0 0; W5 Hyderabad 1 0 25.
+GRAINS: warehouse / movement -> warehouse.
+MY ORIGINAL SQL (verbatim):
+with cte as (
+select w.warehouse_id , w.warehouse_name,count(i.movement_type) as total_movements, sum(case when i.movement_type='IN' then quantity else 0 end) as inward_quantity , sum(Case when i.movement_type='OUT' then quantity else 0 end) as outward_quantity
+from inventorymovements i left join warehouses w on
+w.warehouse_id=i.warehouse_id
+)
+select warehouse_id , warehouse_name , coalesce(total_movements,0) as total_movements , coalesce(inward_quantity,0) as inward_quantity,coalesce(outward_quantity,0) as outward_quantity
+from cte
+order by warehouse_id
+DIAGNOSIS: The attempt put movements on LEFT, losing W4, omitted GROUP BY
+and closing CTE parenthesis. COUNT(movement_id) is the reliable record count.
+===============================================================================
+*/
+SELECT w.warehouse_id, w.warehouse_name,
+       COUNT(i.movement_id) AS total_movements,
+       SUM(CASE WHEN i.movement_type = 'IN' THEN i.quantity ELSE 0 END)
+           AS inward_quantity,
+       SUM(CASE WHEN i.movement_type = 'OUT' THEN i.quantity ELSE 0 END)
+           AS outward_quantity
+FROM Warehouses w
+LEFT JOIN InventoryMovements i ON w.warehouse_id = i.warehouse_id
+GROUP BY w.warehouse_id, w.warehouse_name
+ORDER BY w.warehouse_id;
+
+/*
+===============================================================================
+REINFORCEMENT R2 — STORES AND SALES (LEFT JOIN QUICK CHECK)
+SCHEMA: Stores(store_id,store_name); Sales(sale_id,store_id,amount)
+QUESTION: Every store, total sales amount and number of transactions,
+including zero-sales stores with BOTH metrics zero.
+EXPECTED LOGIC: No illustrative sample rows were supplied in this exercise.
+MY ORIGINAL SQL (verbatim):
+select s.store_id , s.store_name , sum(sl.amount) as total_sales_amount,count(sl.sale_id) as transaction_count from stores s
+left join sales sl on
+s.store_id = sl.store_id
+group by s.store_id , s.store_name
+DIAGNOSIS: Correct JOIN, COUNT and GROUP BY. SUM(sl.amount) is NULL for
+zero-sales store; use COALESCE(SUM(...),0). This was a FIRST-TRY join success.
+===============================================================================
+*/
+SELECT s.store_id, s.store_name,
+       COALESCE(SUM(sl.amount), 0) AS total_sales_amount,
+       COUNT(sl.sale_id) AS transaction_count
+FROM Stores s
+LEFT JOIN Sales sl ON s.store_id = sl.store_id
+GROUP BY s.store_id, s.store_name;
+
+/*
+===============================================================================
+REINFORCEMENT R3 — EMPLOYEE CERTIFICATIONS / REFERENCE-TABLE VALIDATION
+SCHEMA: Employees(employee_id,employee_name)
+        Certifications(certification_id,certification_name)
+        EmployeeCertifications(employee_id,certification_id,completion_date)
+QUESTION: Every employee, COUNT DISTINCT officially valid certifications
+completed, including employees with none, excluding invalid certification IDs.
+No sample rows provided. Hypothetical example: C99 in EmployeeCertifications
+but not Certifications should contribute ZERO to valid certificate count.
+MY ORIGINAL JOIN FRAGMENT (verbatim):
+from employees e left join employeecertifications ec on
+e.employee_id=ec.employee_id
+left join certifications c on
+ec.certification_id=c.certification_id
+group by employee_id , employee_name
+
+MY FULL SQL (verbatim):
+with
+cte as (
+Select e.employee_id , e.employee_name , count(distinct ec.certification_id) as completed_certificates
+from employees e
+left join employeecertification ec on
+e.employee_id=ec.employee_id
+left join certifications c on
+ec.certification_id = c.certification_id
+group by e.employee_id, e.employee_name
+)
+select e.employee_id , e.employee_name , coalesce(completed_certificates,0) as completed_certificates
+from cte
+
+DIAGNOSIS: JOINs, base preservation, GROUP BY correct. COUNT(DISTINCT
+ ec.certification_id) includes invalid IDs such as C99; use COUNT(DISTINCT
+ c.certification_id). Outer e alias out of scope; table spelled singular in
+full attempt vs schema plural. COUNT returns 0 without COALESCE.
+===============================================================================
+*/
+SELECT e.employee_id, e.employee_name,
+       COUNT(DISTINCT c.certification_id) AS completed_certifications
+FROM Employees e
+LEFT JOIN EmployeeCertifications ec ON e.employee_id = ec.employee_id
+LEFT JOIN Certifications c ON ec.certification_id = c.certification_id
+GROUP BY e.employee_id, e.employee_name;
+
+/*
+===============================================================================
+REINFORCEMENT R4 — STUDENTS WITH EXAM COUNTS
+SCHEMA: Students(student_id,student_name)
+        ExamResults(result_id,student_id,score)
+Students: (1,Alice),(2,Bob),(3,Charlie),(4,David),(5,Emma)
+Results: (101,1,85),(102,1,90),(103,2,75),(104,4,88)
+REQUIREMENT: Every student, count of exam results, zero if none.
+EXPECTED: (1,2),(2,1),(3,0),(4,1),(5,0).
+MY ORIGINAL SQL (verbatim):
+select s.student_id ,count(r.result_id) as exam_count  from examresults r
+left join students s on
+r.student_id=s.student_id
+group by s.student_id
+DIAGNOSIS: Verbal reasoning said 'students go LEFT', but SQL placed ExamResults
+on left, losing 3 and 5. Correct count column and grouping.
+===============================================================================
+*/
+SELECT s.student_id, COUNT(r.result_id) AS exam_count
+FROM Students s
+LEFT JOIN ExamResults r ON s.student_id = r.student_id
+GROUP BY s.student_id
+ORDER BY s.student_id;
+
+/*
+===============================================================================
+REINFORCEMENT R5 — DEPARTMENTS AND EMPLOYEES (JOIN DIRECTION MICRO-CHECK)
+SCHEMA: Department(department_id); Employee(employee_id,department_id)
+QUESTION: Keep every department even if it has zero employees.
+MY ORIGINAL CORRECT FRAGMENT (verbatim):
+from department d left join employee e on d.department_id = e.department_id
+DIAGNOSIS: Correct preservation-side choice after earlier reversals.
+===============================================================================
+*/
+SELECT d.department_id, COUNT(e.employee_id) AS employee_count
+FROM Department d
+LEFT JOIN Employee e ON d.department_id = e.department_id
+GROUP BY d.department_id;
+
+/*
+===============================================================================
+REINFORCEMENT R6 — PRODUCTS AND RETURNS (CONCEPT CHECK)
+SCHEMA: Products(product_id); Returns(return_id,product_id)
+QUESTION: Every product, count returns; never-returned products appear as 0.
+MY ANSWER: 'the return table goes into left and we use count(return_id)
+and one row represents product and no of time it was returned'
+DIAGNOSIS: Correct metric/final grain, reversed join direction.
+===============================================================================
+*/
+SELECT p.product_id, COUNT(r.return_id) AS return_count
+FROM Products p
+LEFT JOIN Returns r ON p.product_id = r.product_id
+GROUP BY p.product_id;
+
+/*
+===============================================================================
+REINFORCEMENT R7 — APPROVED PRODUCTS (CONCEPT CHECK)
+SCHEMA: Orders(order_id,customer_id,product_id)
+        ApprovedProducts(product_id)
+QUESTION: Count distinct APPROVED products ordered per customer; unapproved
+products must not count. No example rows provided in original check.
+MY ANSWER (verbatim):
+b bcz this will give all approved product per customer  , if we use a option it will have count of unapproed product
+DIAGNOSIS: Correct distinction: COUNT(DISTINCT ap.product_id), not o.product_id.
+===============================================================================
+*/
+SELECT o.customer_id, COUNT(DISTINCT ap.product_id) AS approved_product_count
+FROM Orders o
+LEFT JOIN ApprovedProducts ap ON o.product_id = ap.product_id
+GROUP BY o.customer_id;
+
+/*
+===============================================================================
+REINFORCEMENT R8 — RIDE VS ATTEMPT GRAIN (LATER REVISIT; NO USER ATTEMPT)
+SCHEMA: Rides(ride_id,driver_id); RideAttempts(attempt_id,ride_id,status)
+DATA: (R1,A1,failed),(R1,A2,completed),(R1,A3,completed),
+      (R2,A4,failed),(R3,A5,completed); all three rides belong to driver D1.
+QUESTION: For D1 count DISTINCT rides, DISTINCT rides with >=1 completed
+attempt, and failed ATTEMPT records.
+EXPECTED: 3 total rides, 2 completed rides, 2 failed attempts.
+PATTERN: COUNT(DISTINCT r.ride_id), COUNT(DISTINCT CASE WHEN status='completed'
+THEN r.ride_id END), SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END).
+This question was offered at the end of Q5, but user did not answer it;
+DO NOT count it as an independently passed problem.
+===============================================================================
+*/
+SELECT r.driver_id,
+       COUNT(DISTINCT r.ride_id) AS total_rides,
+       COUNT(DISTINCT CASE WHEN a.status = 'completed'
+                           THEN r.ride_id END) AS completed_rides,
+       SUM(CASE WHEN a.status = 'failed' THEN 1 ELSE 0 END)
+           AS failed_attempts
+FROM Rides r
+LEFT JOIN RideAttempts a ON r.ride_id = a.ride_id
+GROUP BY r.driver_id;
+
+/*
+===============================================================================
+DAY 2 RETROSPECTIVE / DELAYED CHECKLIST
+[PASS] Q1 anti-join (minor redundant GROUP BY)
+[PASS LOGIC AFTER RETRY] Q2 conditional customer metrics and full preservation
+[IMPROVED, SQL NOT FIRST-TRY CLEAN] Q3 mandatory training/reference validation
+[PASS LOGIC, ALIASES TO CHECK] Q4 subscriptions/payments join fanout
+[PASS STRUCTURE, MISREAD DISTINCT QUALIFIER] Q5 hub final assessment
+[REINFORCED] Warehouse base table reversal, missing GROUP BY
+[REINFORCED] Student and product preservation side
+[REINFORCED] Store NULL SUM vs zero
+[REINFORCED] Reference table's COUNT(DISTINCT) vs event table's
+
+DON'T MEMORIZE; PRACTISE EACH QUESTION COLD:
+1. What exactly does the final row represent?
+2. What population must appear regardless of a match?
+3. What is being counted: event, distinct entity, or distinct qualified entity?
+4. Does NULL after joining signify absent match? Which ID is safe to count?
+5. Are SUM/COUNT outputs zero when required? Is division protected?
+6. Have I typed CTE aliases and literal statuses exactly as defined?
+
+STATUS: DAY 2 PROVISIONALLY COMPLETE; a new mixed unseen problem later should
+verify retained ability without hints. This is a REVISION BANK, not proof that
+all possible hard SQL patterns are mastered.
+===============================================================================
+*/
