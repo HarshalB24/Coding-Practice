@@ -2852,3 +2852,479 @@ verify retained ability without hints. This is a REVISION BANK, not proof that
 all possible hard SQL patterns are mastered.
 ===============================================================================
 */
+
+
+#10/24/2026:
+/*
+===============================================================================
+STAGE 1 | DAY 3 — SQL PATTERN RECOGNITION & MISTAKE BANK
+TOPIC: DENSE_RANK, LATEST VALID ROW, LAG, WINDOW FRAMES / HISTORY
+DIALECT: MySQL 8+ | Day 3 session, October 2026
+===============================================================================
+REVISION METHOD
+1. Read the problem, source data, expected output, and business rules only.
+2. Hide original and corrected SQL. State raw/intermediate/final grains.
+3. Solve from scratch. Check output columns, filter values, deterministic ties,
+   null preservation, exact CTE alias names and required ORDER BY.
+4. Compare to ORIGINAL SQL (preserved verbatim) and corrected SQL beneath it.
+5. Tomorrow: NEW mixed scenarios across Days 1–3 BEFORE starting Day 4.
+
+STATUS: Day 3 original four questions attempted; reinforcement partially done.
+       FINAL UNSEEN MASTERY CHECK NOT YET DONE. Do not mark Day 3 mastered.
+
+INDEX
+Q1: Sales leaderboard — DENSE_RANK with ties
+Q2: Customer latest VALID address AS OF cutoff — base population preservation
+R2: Product latest approved price — Q2 reinforcement
+Q3: Transaction > 1.5x immediately previous amount — LAG
+Q4: Merchant latest transaction > 1.5x historical average
+R4: Employee latest salary > 1.5x older salaries — window-frame practice
+
+KEY RULES
+- DENSE_RANK skips no rank values after ties; filter ranked CTE with its
+  ACTUAL alias, not an undeclared alias like rn.
+- Latest means ORDER BY business time DESC, identifier DESC; not amount DESC.
+- Eligibility WHERE filters execute BEFORE ROW_NUMBER ranking.
+- For entities without an eligible row: preserve ORIGINAL entity population
+  with LEFT JOIN and put ranked_alias.rn = 1 in the ON clause.
+- Do not turn required NULL outputs into blank strings with COALESCE.
+- With LAG, ORDER BY every specified tie-breaker; final grain is per EVENT.
+- For latest vs prior-history average, do not throw away the latest row and
+  accidentally compare historical events against their own average.
+- Window frame ordered newest-to-oldest:
+  ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING averages OLDER records.
+- Window ORDER BY must specify expressions BEFORE the ROWS frame.
+- Verify exact projected aliases, string labels ('success' vs 'successful'),
+  qualifying entity vs event counting, and exact output sorting.
+===============================================================================
+*/
+
+/*
+===============================================================================
+Q1 — SALES LEADERBOARD (TOP TWO DISTINCT PERFORMANCE LEVELS PER REGION)
+SCHEMA: SalesTransactions(transaction_id, sales_rep_id, region,
+                          transaction_date, amount)
+SAMPLE DATA (transaction_id,rep,region,date,amount):
+(1,E1,North,2026-10-01,500)
+(2,E1,North,2026-10-03,300)
+(3,E2,North,2026-10-02,800)
+(4,E3,North,2026-10-02,600)
+(5,E4,South,2026-10-01,400)
+(6,E4,South,2026-10-03,200)
+(7,E5,South,2026-10-02,600)
+(8,E6,South,2026-10-04,300)
+REQUIREMENT: Return top TWO DISTINCT totals in EACH region; tied reps share
+same rank and rank numbering must have NO gaps. Return region, sales_rep_id,
+total_sales, sales_rank. Order region, sales_rank, sales_rep_id.
+EXPECTED:
+North | E1 | 800 | 1
+North | E2 | 800 | 1
+North | E3 | 600 | 2
+South | E4 | 600 | 1
+South | E5 | 600 | 1
+South | E6 | 300 | 2
+GRAINS: raw=transaction; intermediate=rep+region totals; final=ranked rep+region.
+PATTERN: GROUP BY first, then DENSE_RANK() OVER(PARTITION BY region ...).
+
+MY ORIGINAL REASONING (verbatim):
+raw grain - one row per transaction
+intermediate - first find total sales per emp per region then find the top 2 distinct rep per region
+final - rows per region satisfying the condition
+pattern - use sum + group by and then dense rank
+
+MY ORIGINAL SQL (verbatim):
+with total_sale as (
+select sales_rep_id , region,sum(amount) as total_sales
+from salestransactions
+group by sales_rep_id,  region
+),
+ranking as (
+select region,sales_rep_id , total_sales , dense_rank() over (partition by region order by total_sales desc) as sales_rank
+from total_sale
+)
+select region,sales_rep_id , total_sales , sales_rank
+from ranking
+where rn<=2
+
+DIAGNOSIS: Ranking logic CORRECT. WHERE references undeclared rn rather than
+sales_rank. Final ORDER BY omitted; user acknowledged not reading sort rule.
+===============================================================================
+*/
+WITH total_sale AS (
+    SELECT sales_rep_id, region, SUM(amount) AS total_sales
+    FROM SalesTransactions
+    GROUP BY sales_rep_id, region
+), ranking AS (
+    SELECT region, sales_rep_id, total_sales,
+           DENSE_RANK() OVER (PARTITION BY region ORDER BY total_sales DESC)
+               AS sales_rank
+    FROM total_sale
+)
+SELECT region, sales_rep_id, total_sales, sales_rank
+FROM ranking
+WHERE sales_rank <= 2
+ORDER BY region, sales_rank, sales_rep_id;
+
+/*
+===============================================================================
+Q2 — CUSTOMER ADDRESS HISTORY: LATEST VALID ADDRESS AS OF 2026-04-30
+SCHEMA: CustomerAddresses(address_id,customer_id,city,updated_at,is_valid)
+SAMPLE DATA:
+(1,C1,Mumbai,2026-01-10,Y)
+(2,C1,Pune,2026-03-15,Y)
+(3,C1,Delhi,2026-05-20,N)
+(4,C2,Bengaluru,2026-02-01,Y)
+(5,C2,Chennai,2026-06-10,Y)
+(6,C3,Hyderabad,2026-01-05,N)
+(7,C3,Kolkata,2026-04-12,N)
+(8,C4,Jaipur,2026-03-01,Y)
+REQUIREMENT: For every customer present ANYWHERE in original address data,
+return most recent valid Y address by April 30 inclusive, tie-breaking by
+highest address_id. If none eligible, city and updated_at must be SQL NULL.
+Return customer_id,city,updated_at ordered by customer_id.
+EXPECTED:
+C1 | Pune       | 2026-03-15
+C2 | Bengaluru  | 2026-02-01
+C3 | NULL       | NULL
+C4 | Jaipur     | 2026-03-01
+GRAINS: raw=address record; base=distinct customer; qualifying=eligible
+address records; final=all original customers each with <=1 eligible address.
+PATTERN: filtered ROW_NUMBER + LEFT JOIN from COMPLETE customer base.
+
+MY ORIGINAL REASONING (verbatim):
+raw grain - one row per customer
+intermediate - so first we find latest valid adress using row number and then filter for updated at <='2026-30-04'
+then we give the city and updated at as null if no valid address by that date
+final - one row per customer satisfying the condition
+pattern - we use row numebr to find the latest updated address and then filter the non relevant
+then we set updated at and city as null and then return the output but i m not sure if i am udnerstanding it correctly and my logic is 100 % correct
+
+MY ORIGINAL SQL (verbatim):
+with lat_add as (
+select customer_id , city,updated_at , row_number() over (partition by customer_id order by updated_at desc , address_id desc) as rn
+from customeraddresses
+where updated_at <='2026-04-30'
+)
+select customer_id , coalesce(city,'') as city , coalesce(updated_at ,'') as updated_at
+from lat_add
+order by customer_id
+
+DIAGNOSIS: Missing is_valid='Y'; no rn=1 selection; no base customer LEFT JOIN;
+COALESCE to '' violates required NULL; misidentified raw grain. Ranking tie
+ordering itself CORRECT. User recognized omitted conditions. Follow-up salary
+check: verbally identified Employees base and rn condition in ON, but wrote
+LEFT JOIN direction backward; corrected in product reinforcement below.
+===============================================================================
+*/
+WITH all_customers AS (
+    SELECT DISTINCT customer_id FROM CustomerAddresses
+), valid_addresses AS (
+    SELECT customer_id, city, updated_at,
+           ROW_NUMBER() OVER (
+               PARTITION BY customer_id
+               ORDER BY updated_at DESC, address_id DESC
+           ) AS rn
+    FROM CustomerAddresses
+    WHERE is_valid = 'Y' AND updated_at <= '2026-04-30'
+)
+SELECT c.customer_id, v.city, v.updated_at
+FROM all_customers c
+LEFT JOIN valid_addresses v
+       ON c.customer_id = v.customer_id AND v.rn = 1
+ORDER BY c.customer_id;
+
+/*
+===============================================================================
+R2 — LATEST APPROVED PRODUCT PRICE: Q2 REINFORCEMENT
+SCHEMA: Products(product_id,product_name)
+        PriceHistory(price_id,product_id,price,effective_date,is_approved)
+PRODUCTS: (P1,Laptop),(P2,Mouse),(P3,Keyboard),(P4,Monitor),(P5,Headphones)
+PRICES:
+(1,P1,50000,2026-01-10,Y)
+(2,P1,55000,2026-03-15,Y)
+(3,P1,60000,2026-05-10,Y)
+(4,P2,1000,2026-02-01,Y)
+(5,P2,1200,2026-04-10,N)
+(6,P3,2000,2026-03-01,N)
+(7,P4,15000,2026-01-20,Y)
+(8,P5,3000,2026-06-01,Y)
+REQUIREMENT: Every product; latest APPROVED Y price effective on or before
+2026-04-30; ties resolved by greatest price_id. Missing -> SQL NULL price/date.
+Return product_id,product_name,price,effective_date sorted by product_id.
+EXPECTED:
+P1 | Laptop     | 55000 | 2026-03-15
+P2 | Mouse      | 1000  | 2026-02-01
+P3 | Keyboard   | NULL  | NULL
+P4 | Monitor    | 15000 | 2026-01-20
+P5 | Headphones | NULL  | NULL
+GRAINS: Products=one/product, history=one/price record, final=one/product.
+
+MY ORIGINAL SQL (verbatim):
+with dis_prod as (
+select distinct product_id , product_name from products
+),
+cte as (
+Select product_id , price,effective_date,row_number() over (partition by product_id order by price desc , price_id desc) as rn
+from pricehistory
+where is_approved='Y' and effective_date <='2026-04-30'
+)
+select p.product_id,p.product_name ,c.price,c.effective_date from lat_prod p
+left join cte c on
+p.product_id=c.product_id and p.rn=1
+order by product_id
+
+DIAGNOSIS: Base LEFT JOIN direction FIXED; filtering before rank FIXED;
+'rn=1' in ON correct LOCATION but wrong ALIAS p.rn instead of c.rn;
+dis_prod vs lat_prod naming mismatch; ORDER BY price wrongly means highest
+price, not LATEST effective_date. DISTINCT Products redundant for unique IDs.
+User independently answered date tie-break exercise: date 2026-03-01 tie
+between IDs 11 and 12 -> ID 12 and price 4500.
+===============================================================================
+*/
+WITH eligible_prices AS (
+    SELECT product_id, price, effective_date,
+           ROW_NUMBER() OVER (
+               PARTITION BY product_id
+               ORDER BY effective_date DESC, price_id DESC
+           ) AS rn
+    FROM PriceHistory
+    WHERE is_approved = 'Y' AND effective_date <= '2026-04-30'
+)
+SELECT p.product_id, p.product_name, ep.price, ep.effective_date
+FROM Products p
+LEFT JOIN eligible_prices ep
+       ON p.product_id = ep.product_id AND ep.rn = 1
+ORDER BY p.product_id;
+
+/*
+===============================================================================
+Q3 — TRANSACTION SPIKE VS IMMEDIATELY PREVIOUS TRANSACTION
+SCHEMA: Transactions(transaction_id,customer_id,transaction_date,amount)
+DATA:
+(T1,C1,2026-01-05,100)
+(T2,C1,2026-01-10,150)
+(T3,C1,2026-01-15,300)
+(T4,C1,2026-01-20,250)
+(T5,C2,2026-01-03,200)
+(T6,C2,2026-01-08,400)
+(T7,C2,2026-01-12,700)
+(T8,C3,2026-01-07,500)
+REQUIREMENT: Each transaction whose amount > 1.5 * immediately previous
+amount for SAME customer, ordered chronologically by transaction_date ASC,
+transaction_id ASC for ties. First event never qualifies.
+Return customer_id,transaction_id,amount,previous_amount; sort by
+customer_id,transaction_date,transaction_id.
+EXPECTED:
+C1 | T3 | 300 | 150
+C2 | T6 | 400 | 200
+C2 | T7 | 700 | 400
+GRAINS: raw=transaction; interim=transaction + prior amount; final=qualifying
+transaction (NOT one per customer: C2 qualifies twice).
+PATTERN: LAG amount with deterministic per-customer chronological order.
+
+MY ORIGINAL REASONING (verbatim):
+raw grain - one row per transaction
+intermediate - we use lag to find the transaction here with partitioning on customer to find the previous transaction and then compare current and prev transaction
+final - one row per customer satisfying the condtiion
+pattern - first find the previous transaction per customer then comp the current and prev transaction so since we have transaction order determined here we use lag on it and partition by customer
+
+MY ORIGINAL SQL (verbatim):
+with cte as (
+Select customer_id ,transaction_date, transaction_id , amount , lag(transaction_id) over (partition by customer_id order by transaction_date) as prev_transaction , lag(amount) over (partition by customer_id order by transaction_date) as prev_amount
+from transactions
+)
+select transaction_id , customer_id , amount , prev_amount
+from cte
+where amount > 1.5 * prev_amount
+order by customer_id , transaction_date , transaction_id
+
+DIAGNOSIS: Correct core logic and result for provided data. Missing
+transaction_id in BOTH window ORDER BY clauses; prev_transaction not needed.
+Final grain verbal description wrong (event, not customer). Requirement
+specified customer_id first in output, original SELECT has transaction_id first.
+===============================================================================
+*/
+WITH transactions_with_previous AS (
+    SELECT customer_id, transaction_id, transaction_date, amount,
+           LAG(amount) OVER (
+               PARTITION BY customer_id
+               ORDER BY transaction_date ASC, transaction_id ASC
+           ) AS previous_amount
+    FROM Transactions
+)
+SELECT customer_id, transaction_id, amount, previous_amount
+FROM transactions_with_previous
+WHERE amount > 1.5 * previous_amount
+ORDER BY customer_id, transaction_date, transaction_id;
+
+/*
+===============================================================================
+Q4 — MERCHANT LATEST TRANSACTION VS AVERAGE OF ALL OLDER TRANSACTIONS
+SCHEMA: MerchantTransactions(transaction_id,merchant_id,transaction_date,amount)
+DATA:
+(T1,M1,2026-01-01,100)
+(T2,M1,2026-01-03,200)
+(T3,M1,2026-01-05,400)
+(T4,M2,2026-01-01,300)
+(T5,M2,2026-01-02,300)
+(T6,M2,2026-01-05,350)
+(T7,M3,2026-01-02,200)
+(T8,M3,2026-01-04,500)
+(T9,M4,2026-01-03,600)
+REQUIREMENT: Return merchants where LATEST amount > 1.5 * AVG(ALL PREVIOUS
+amounts), excluding latest itself. Latest = date DESC then ID DESC. Merchants
+with only one event cannot qualify. Output merchant_id,latest_transaction_id,
+latest_amount,previous_avg_amount rounded 2 decimal places; compare unrounded.
+Sort by merchant_id.
+EXPECTED:
+M1 | T3 | 400 | 150.00     (400 > 1.5 * 150 = 225)
+M3 | T8 | 500 | 200.00     (500 > 1.5 * 200 = 300)
+M2 fails: 350 is NOT > 1.5*300 = 450. M4 has no previous transaction.
+GRAINS: raw=merchant transaction; intermediate=ranked merchant transactions;
+final=one qualifying merchant and latest transaction + past average.
+
+MY ORIGINAL REASONING (verbatim):
+raw grain  - one row per transaction
+intermediate - we find the latest amount using row number and then find the avg of historical transaction and compare
+final - one row per merchant satisfying the condition
+pattern - first find the latest amount , then find the avg of historical transaction
+
+MY ORIGINAL SQL (verbatim):
+with latest_tran as (
+Select transaction_id , merchant_id , transaction_date , amount , row_number () over (partition by merchant_id order by transaction_date desc, transaction_id desc) as rn
+from merchanttransactions
+),avg_hist as (
+Select merchant_id , transaction_id , amount , avg(amount) over (partition by merchant_id) as prev_avg_amount
+from latest_tran
+where rn!=1
+)
+select merchant_id , transaction_id as latest_transaction_id , amount as latest_amount , round(prev_avg_amount,2) as prev_avg_amount
+from avg_hist
+where amount > 1.5 * prev_avg_amount
+order by merchant_id
+
+DIAGNOSIS: ROW_NUMBER ordering correct, historical mean for historical rows
+correct, BUT rn != 1 drops latest transaction. Final query compares older
+rows against old-row average rather than latest amount vs historical average.
+User requested simpler solution and preferred a framed AVG() OVER(...) so
+latest row and its historical average remain together.
+
+SOLUTION A: GROUPED HISTORICAL AVERAGE + JOIN TO LATEST (clear alternative)
+===============================================================================
+*/
+WITH latest_tran AS (
+    SELECT transaction_id, merchant_id, transaction_date, amount,
+           ROW_NUMBER() OVER (
+               PARTITION BY merchant_id
+               ORDER BY transaction_date DESC, transaction_id DESC
+           ) AS rn
+    FROM MerchantTransactions
+), avg_hist AS (
+    SELECT merchant_id, AVG(amount) AS previous_avg_amount
+    FROM latest_tran
+    WHERE rn <> 1
+    GROUP BY merchant_id
+)
+SELECT l.merchant_id, l.transaction_id AS latest_transaction_id,
+       l.amount AS latest_amount,
+       ROUND(h.previous_avg_amount, 2) AS previous_avg_amount
+FROM latest_tran l
+JOIN avg_hist h ON l.merchant_id = h.merchant_id
+WHERE l.rn = 1 AND l.amount > 1.5 * h.previous_avg_amount
+ORDER BY l.merchant_id;
+
+/*
+SOLUTION B: PREFERRED WINDOW-FRAME VERSION — ONE CTE, NO SELF JOIN.
+With descending ordering, 1 FOLLOWING onward means OLDER events.
+The latest row (rn=1) receives AVG of every earlier historical event.
+The last/only row receives NULL historical average and does not qualify.
+*/
+WITH transaction_metrics AS (
+    SELECT merchant_id, transaction_id, amount,
+           ROW_NUMBER() OVER (
+               PARTITION BY merchant_id
+               ORDER BY transaction_date DESC, transaction_id DESC
+           ) AS rn,
+           AVG(amount) OVER (
+               PARTITION BY merchant_id
+               ORDER BY transaction_date DESC, transaction_id DESC
+               ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
+           ) AS previous_avg_amount
+    FROM MerchantTransactions
+)
+SELECT merchant_id, transaction_id AS latest_transaction_id,
+       amount AS latest_amount,
+       ROUND(previous_avg_amount, 2) AS previous_avg_amount
+FROM transaction_metrics
+WHERE rn = 1 AND amount > 1.5 * previous_avg_amount
+ORDER BY merchant_id;
+
+/*
+===============================================================================
+R4 — EMPLOYEE SALARY HISTORY: Q4 WINDOW-FRAME REINFORCEMENT
+SCHEMA: SalaryHistory(record_id,employee_id,effective_date,salary)
+DATA:
+(1,E1,2026-01-01,40000)
+(2,E1,2026-03-01,45000)
+(3,E1,2026-06-01,70000)
+(4,E2,2026-01-01,50000)
+(5,E2,2026-04-01,55000)
+(6,E2,2026-07-01,60000)
+(7,E3,2026-02-01,30000)
+(8,E3,2026-08-01,60000)
+(9,E4,2026-05-01,80000)
+REQUIREMENT: latest salary (effective_date DESC, record_id DESC) must be
+strictly > 1.5 * AVG(ALL OLDER salaries). Employees with only one salary
+record excluded. Return employee_id,latest_salary,previous_avg_salary rounded
+2 decimals, order by employee_id. Compare unrounded.
+EXPECTED:
+E1 | 70000 | 42500.00       (70000 > 1.5*42500 = 63750)
+E3 | 60000 | 30000.00       (60000 > 1.5*30000 = 45000)
+E2 fails; E4 has no history.
+GRAINS: raw=one salary record; interim=record+rank+older avg; final=one
+qualifying employee/latest salary.
+
+MY ORIGINAL SQL (verbatim):
+with cte as (
+Select employee_id , salary , effective_date , row_number () over (partition by employee_id order by effective_Date desc , record_id desc ) as rn , avg(salary) over (partition by employee_id order by rows between 1 following and unbounded following) as prev_avg_amount
+from salaryhistory
+)
+select employee_id , salary as latest_salary , round(prev_avg_amount,2) as prev_avg_amount from cte
+where rn=1 and salary > 1.5 * prev_avg_amount
+order by employee_id
+
+DIAGNOSIS: User independently understood the correct framed approach and
+comparison, but typed ORDER BY without columns in AVG window, making invalid
+syntax. Need identical deterministic ordering for RN and framed AVG. Final
+alias prev_avg_amount differs from requested previous_avg_salary.
+===============================================================================
+*/
+WITH salary_metrics AS (
+    SELECT employee_id, salary,
+           ROW_NUMBER() OVER (
+               PARTITION BY employee_id
+               ORDER BY effective_date DESC, record_id DESC
+           ) AS rn,
+           AVG(salary) OVER (
+               PARTITION BY employee_id
+               ORDER BY effective_date DESC, record_id DESC
+               ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
+           ) AS previous_avg_salary
+    FROM SalaryHistory
+)
+SELECT employee_id, salary AS latest_salary,
+       ROUND(previous_avg_salary, 2) AS previous_avg_salary
+FROM salary_metrics
+WHERE rn = 1 AND salary > 1.5 * previous_avg_salary
+ORDER BY employee_id;
+
+/*
+===============================================================================
+DELAYED REVISION CHECK — BEFORE DAY 4
+- New unseen scenarios combining Day 1 + Day 2 + Day 3 (NO pattern hints).
+- Test DISTINCT vs attempt/event count, left-join population, latest eligible
+  as-of snapshot, tie-breakers, historical/window-frame averages, CTE aliases.
+- Mark 'mastered' only after independent accurate SQL, not a demonstrated
+  solution or simple comprehension check.
+===============================================================================
+*/
