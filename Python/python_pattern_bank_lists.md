@@ -234,6 +234,17 @@ sorted_data = sorted(
 )
 ```
 
+### 13. find count of vowels in given string
+``` python 
+str='hello world'
+count=0
+
+for char in str.lower():
+    if char in str:
+        count+=1
+    else:
+        count
+print(count)
 ## Current Assessment
 
 - **List concepts:** Strong

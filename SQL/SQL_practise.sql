@@ -3941,3 +3941,9 @@ In this problem:
 - AVG(total_project_hours) operates on project totals.
 That's an aggregate of aggregates, and it's exactly where you've struggled in previous questions.
 Q1 status: Not mastered yet. That's fine—we're staying on this concept until it becomes reliable.
+
+find count of vowels in a given starting
+
+Soln : 
+select regexp_count('hello word',1,'i') as vowel_count
+from table
