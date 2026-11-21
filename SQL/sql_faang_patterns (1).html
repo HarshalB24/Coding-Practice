@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Interview Patterns — FAANG & MNC</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2230;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent2: #f78166;
+    --accent3: #3fb950;
+    --accent4: #d2a8ff;
+    --accent5: #ffa657;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --text-dim: #484f58;
+    --tag-bg: #1f2d3d;
+    --code-bg: #0d1117;
+    --keyword: #ff7b72;
+    --func: #d2a8ff;
+    --string: #a5d6ff;
+    --comment: #8b949e;
+    --number: #79c0ff;
+    --type: #ffa657;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* TOP NAV */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+  }
+  .topbar-brand span { color: var(--text-muted); font-weight: 400; font-size: 13px; }
+  .topbar-tags { display: flex; gap: 8px; }
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.4px;
+  }
+  .badge-blue { background: #1f3a5c; color: var(--accent); border: 1px solid #2d5a8e; }
+  .badge-orange { background: #2d1e0f; color: var(--accent5); border: 1px solid #5a3a1a; }
+  .badge-green { background: #0d2818; color: var(--accent3); border: 1px solid #1a5a30; }
+
+  /* LAYOUT */
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 56px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sidebar-section { margin-bottom: 8px; }
+  .sidebar-heading {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 8px 20px 4px;
+  }
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+  }
+  .sidebar-link:hover { color: var(--text); background: var(--surface2); border-left-color: var(--accent); }
+  .sidebar-link .num {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface2);
+    color: var(--text-dim);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+  }
+  .sidebar-icon { font-size: 14px; width: 16px; text-align: center; }
+
+  /* MAIN */
+  .main { flex: 1; min-width: 0; padding: 40px 48px 80px; }
+
+  /* PAGE HEADER */
+  .page-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+  }
+  .breadcrumb {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .page-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .page-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  .page-meta-item { display: flex; align-items: center; gap: 5px; }
+
+  /* PATTERN SECTION */
+  .pattern-section {
+    margin-bottom: 56px;
+    scroll-margin-top: 72px;
+  }
+  .pattern-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .pattern-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--tag-bg);
+    border: 1px solid #2d5a8e;
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+  .pattern-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .pattern-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .pattern-desc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent4);
+    padding: 14px 18px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  /* QUESTION CARD */
+  .question-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .question-card:hover { border-color: #444c56; }
+
+  .question-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .q-difficulty {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .diff-easy { background: #0d2818; color: var(--accent3); border: 1px solid #1d4d2e; }
+  .diff-medium { background: #2a1f0a; color: var(--accent5); border: 1px solid #5a3a1a; }
+  .diff-hard { background: #2d0f0f; color: var(--accent2); border: 1px solid #5a1f1f; }
+
+  .q-company-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .q-company {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .q-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+  }
+  .q-toggle {
+    color: var(--text-dim);
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+  .question-card.open .q-toggle { transform: rotate(180deg); }
+
+  .question-body {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+  .question-card.open .question-body { display: block; }
+
+  .q-problem {
+    padding: 16px 18px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    border-bottom: 1px dashed var(--border);
+    line-height: 1.7;
+  }
+
+  .q-schema {
+    padding: 12px 18px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .q-schema-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* TABLE */
+  .schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .schema-table th {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-weight: 600;
+    padding: 6px 12px;
+    text-align: left;
+    border: 1px solid var(--border);
+    letter-spacing: 0.5px;
+  }
+  .schema-table td {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .schema-table tr:nth-child(even) td { background: rgba(22,27,34,0.5); }
+  .col-pk { color: var(--accent5); }
+  .col-fk { color: var(--accent); }
+
+  /* CODE BLOCK */
+  .code-wrapper {
+    padding: 12px 18px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .code-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+    overflow-x: auto;
+    white-space: pre;
+    position: relative;
+  }
+  .code-block::-webkit-scrollbar { height: 4px; }
+  .code-block::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* SQL Syntax Highlighting */
+  .kw { color: var(--keyword); font-weight: 600; }
+  .fn { color: var(--func); }
+  .str { color: var(--string); }
+  .cm { color: var(--comment); font-style: italic; }
+  .num { color: var(--number); }
+  .tp { color: var(--type); }
+
+  .q-explanation {
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .q-explanation strong { color: var(--text); font-weight: 600; }
+
+  .q-output {
+    padding: 12px 18px;
+    background: rgba(63,185,80,0.04);
+    border-top: 1px dashed var(--border);
+  }
+  .q-output-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 8px;
+  }
+  .output-table {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    border-collapse: collapse;
+    width: auto;
+  }
+  .output-table th {
+    background: rgba(63,185,80,0.1);
+    color: var(--accent3);
+    padding: 5px 14px;
+    border: 1px solid rgba(63,185,80,0.2);
+    font-weight: 600;
+    text-align: left;
+  }
+  .output-table td {
+    padding: 4px 14px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  /* DIVIDER */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  /* INFO BOX */
+  .info-box {
+    display: flex;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .info-box-tip { background: rgba(88,166,255,0.06); border: 1px solid rgba(88,166,255,0.2); color: var(--text-muted); }
+  .info-box-warn { background: rgba(255,166,87,0.06); border: 1px solid rgba(255,166,87,0.2); color: var(--text-muted); }
+  .info-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* TOC */
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .toc-item:hover { border-color: var(--accent); background: var(--surface2); }
+  .toc-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 28px;
+  }
+  .toc-text { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .toc-count {
+    margin-left: auto;
+    font-size: 11px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .stat { text-align: center; }
+  .stat-val {
+    font-size: 22px;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    letter-spacing: -1px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { padding: 24px 20px 60px; }
+    .page-title { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    🗄️ SQL Interview Vault
+    <span>/ FAANG & MNC Edition</span>
+  </div>
+  <div class="topbar-tags">
+    <span class="badge badge-blue">15 Patterns</span>
+    <span class="badge badge-orange">45+ Questions</span>
+    <span class="badge badge-green">All Answers</span>
+  </div>
+</div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-heading">Patterns</div>
+    <a class="sidebar-link" href="#p1"><span class="sidebar-icon">🪟</span> Window Functions <span class="num">4</span></a>
+    <a class="sidebar-link" href="#p2"><span class="sidebar-icon">🔗</span> Joins & Self-Joins <span class="num">3</span></a>
+    <a class="sidebar-link" href="#p3"><span class="sidebar-icon">🔄</span> CTEs & Subqueries <span class="num">3</span></a>
+    <a class="sidebar-link" href="#p4"><span class="sidebar-icon">📊</span> Aggregations <span class="num">3</span></a>
+    <a class="sidebar-link" href="#p5"><span class="sidebar-icon">🏆</span> Top-N & Ranking <span class="num">3</span></a>
+    <a class="sidebar-link" href="#p6"><span class="sidebar-icon">🔀</span> Pivot / Unpivot <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p7"><span class="sidebar-icon">📈</span> Running Totals <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p8"><span class="sidebar-icon">🔍</span> String Patterns <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p9"><span class="sidebar-icon">📅</span> Date & Time <span class="num">3</span></a>
+    <a class="sidebar-link" href="#p10"><span class="sidebar-icon">🎯</span> Gaps & Islands <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p11"><span class="sidebar-icon">⛔</span> NULL Handling <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p12"><span class="sidebar-icon">🔁</span> Recursive CTE <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p13"><span class="sidebar-icon">📋</span> Deduplication <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p14"><span class="sidebar-icon">🌡️</span> Percentiles/Stats <span class="num">2</span></a>
+    <a class="sidebar-link" href="#p15"><span class="sidebar-icon">🔂</span> Sessionization <span class="num">2</span></a>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="#">Home</a> / <a href="#">Interview Prep</a> / SQL Patterns
+    </div>
+    <h1 class="page-title">SQL Interview Patterns<br>for FAANG & MNC</h1>
+    <div class="page-meta">
+      <span class="page-meta-item">📅 2024 · Updated</span>
+      <span class="page-meta-item">👤 Interview Prep Team</span>
+      <span class="page-meta-item">⏱️ 4 hour read</span>
+      <span class="badge badge-blue">MySQL · PostgreSQL · BigQuery</span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-val">15</div><div class="stat-label">Patterns</div></div>
+    <div class="stat"><div class="stat-val">45+</div><div class="stat-label">Questions</div></div>
+    <div class="stat"><div class="stat-val">12</div><div class="stat-label">Companies</div></div>
+    <div class="stat"><div class="stat-val">100%</div><div class="stat-label">Answered</div></div>
+  </div>
+
+  <div class="info-box info-box-tip">
+    <span class="info-icon">💡</span>
+    <div>Master these 15 patterns and you'll be equipped to handle virtually any SQL interview question at Google, Meta, Amazon, Microsoft, Uber, Flipkart, and similar tier-1 companies. Click any question card to expand the solution.</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc-grid">
+    <a class="toc-item" href="#p1"><span class="toc-num">01</span><span class="toc-text">Window Functions</span><span class="toc-count">4q</span></a>
+    <a class="toc-item" href="#p2"><span class="toc-num">02</span><span class="toc-text">Joins & Self-Joins</span><span class="toc-count">3q</span></a>
+    <a class="toc-item" href="#p3"><span class="toc-num">03</span><span class="toc-text">CTEs & Subqueries</span><span class="toc-count">3q</span></a>
+    <a class="toc-item" href="#p4"><span class="toc-num">04</span><span class="toc-text">Aggregations & HAVING</span><span class="toc-count">3q</span></a>
+    <a class="toc-item" href="#p5"><span class="toc-num">05</span><span class="toc-text">Top-N & Ranking</span><span class="toc-count">3q</span></a>
+    <a class="toc-item" href="#p6"><span class="toc-num">06</span><span class="toc-text">Pivot / Unpivot</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p7"><span class="toc-num">07</span><span class="toc-text">Running Totals</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p8"><span class="toc-num">08</span><span class="toc-text">String Patterns</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p9"><span class="toc-num">09</span><span class="toc-text">Date & Time</span><span class="toc-count">3q</span></a>
+    <a class="toc-item" href="#p10"><span class="toc-num">10</span><span class="toc-text">Gaps & Islands</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p11"><span class="toc-num">11</span><span class="toc-text">NULL Handling</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p12"><span class="toc-num">12</span><span class="toc-text">Recursive CTE</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p13"><span class="toc-num">13</span><span class="toc-text">Deduplication</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p14"><span class="toc-num">14</span><span class="toc-text">Percentiles & Stats</span><span class="toc-count">2q</span></a>
+    <a class="toc-item" href="#p15"><span class="toc-num">15</span><span class="toc-text">Sessionization</span><span class="toc-count">2q</span></a>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 1: WINDOW FUNCTIONS ===== -->
+  <section class="pattern-section" id="p1">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 01</span>
+      <div>
+        <div class="pattern-title">🪟 Window Functions</div>
+        <div class="pattern-subtitle">ROW_NUMBER · RANK · DENSE_RANK · LAG · LEAD · NTILE · FIRST_VALUE</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Window functions perform calculations across a set of rows related to the current row WITHOUT collapsing them (unlike GROUP BY). They're the most tested SQL concept at FAANG. Know PARTITION BY, ORDER BY inside OVER() clause, and the difference between RANK vs DENSE_RANK vs ROW_NUMBER.</div>
+
+    <!-- Q1 -->
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Meta</span><span class="q-company">Google</span></div>
+        <span class="q-title">Find the second highest salary in each department</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given an <code>Employee</code> table with columns <code>emp_id</code>, <code>name</code>, <code>department</code>, <code>salary</code> — find the employee(s) with the <strong>2nd highest salary</strong> in each department. Handle ties correctly.</div>
+        <div class="q-schema">
+          <div class="q-schema-title">📋 Table: Employee</div>
+          <table class="schema-table">
+            <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
+            <tr><td class="col-pk">emp_id</td><td>INT</td><td>Primary Key</td></tr>
+            <tr><td>name</td><td>VARCHAR</td><td></td></tr>
+            <tr><td>department</td><td>VARCHAR</td><td></td></tr>
+            <tr><td>salary</td><td>DECIMAL</td><td></td></tr>
+          </table>
+        </div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Using DENSE_RANK to handle ties correctly</span>
+<span class="kw">WITH</span> ranked <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    emp_id,
+    name,
+    department,
+    salary,
+    <span class="fn">DENSE_RANK</span>() <span class="kw">OVER</span> (
+      <span class="kw">PARTITION BY</span> department
+      <span class="kw">ORDER BY</span> salary <span class="kw">DESC</span>
+    ) <span class="kw">AS</span> rnk
+  <span class="kw">FROM</span> Employee
+)
+<span class="kw">SELECT</span> emp_id, name, department, salary
+<span class="kw">FROM</span> ranked
+<span class="kw">WHERE</span> rnk = <span class="num">2</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Key insight:</strong> Use <code>DENSE_RANK()</code> not <code>ROW_NUMBER()</code> — if two people share the highest salary, <code>ROW_NUMBER</code> would skip the actual 2nd distinct salary. <code>DENSE_RANK</code> gives consecutive ranks without gaps.
+          <br><br><strong>ROW_NUMBER vs RANK vs DENSE_RANK:</strong>
+          <br>• <code>ROW_NUMBER</code>: 1,2,3,4 (always unique)
+          <br>• <code>RANK</code>: 1,1,3,4 (gaps after ties)
+          <br>• <code>DENSE_RANK</code>: 1,1,2,3 (no gaps — preferred for "Nth highest")
+        </div>
+      </div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Uber</span></div>
+        <span class="q-title">Month-over-month revenue growth percentage</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given an <code>orders</code> table with <code>order_date</code> and <code>revenue</code>, calculate the <strong>month-over-month revenue growth %</strong> for each month.</div>
+        <div class="q-schema">
+          <div class="q-schema-title">📋 Table: orders</div>
+          <table class="schema-table">
+            <tr><th>Column</th><th>Type</th></tr>
+            <tr><td>order_id</td><td>INT</td></tr>
+            <tr><td>order_date</td><td>DATE</td></tr>
+            <tr><td>revenue</td><td>DECIMAL</td></tr>
+          </table>
+        </div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> monthly <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    <span class="fn">DATE_FORMAT</span>(order_date, <span class="str">'%Y-%m'</span>) <span class="kw">AS</span> month,
+    <span class="fn">SUM</span>(revenue) <span class="kw">AS</span> total_revenue
+  <span class="kw">FROM</span> orders
+  <span class="kw">GROUP BY</span> <span class="num">1</span>
+)
+<span class="kw">SELECT</span>
+  month,
+  total_revenue,
+  <span class="fn">LAG</span>(total_revenue) <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> month) <span class="kw">AS</span> prev_revenue,
+  <span class="fn">ROUND</span>(
+    (total_revenue - <span class="fn">LAG</span>(total_revenue) <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> month))
+    * <span class="num">100.0</span> / <span class="fn">NULLIF</span>(<span class="fn">LAG</span>(total_revenue) <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> month), <span class="num">0</span>),
+    <span class="num">2</span>
+  ) <span class="kw">AS</span> growth_pct
+<span class="kw">FROM</span> monthly
+<span class="kw">ORDER BY</span> month;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Key insight:</strong> <code>LAG(col)</code> accesses the previous row's value. <code>LEAD(col)</code> accesses the next row. Always wrap divisor in <code>NULLIF(..., 0)</code> to avoid division-by-zero errors.
+        </div>
+      </div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">LinkedIn</span></div>
+        <span class="q-title">First and last purchase date per customer</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From an <code>orders</code> table, find the <strong>first and last order date</strong> for each customer, along with the order amounts on those dates.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT DISTINCT</span>
+  customer_id,
+  <span class="fn">FIRST_VALUE</span>(order_date) <span class="kw">OVER</span> (
+    <span class="kw">PARTITION BY</span> customer_id <span class="kw">ORDER BY</span> order_date <span class="kw">ASC</span>
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</span>
+  ) <span class="kw">AS</span> first_order_date,
+  <span class="fn">LAST_VALUE</span>(order_date) <span class="kw">OVER</span> (
+    <span class="kw">PARTITION BY</span> customer_id <span class="kw">ORDER BY</span> order_date <span class="kw">ASC</span>
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</span>
+  ) <span class="kw">AS</span> last_order_date
+<span class="kw">FROM</span> orders;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Critical gotcha:</strong> <code>LAST_VALUE</code> requires <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code>. Without it, the default frame ends at the current row, making <code>LAST_VALUE</code> equivalent to the current row's value!
+        </div>
+      </div>
+    </div>
+
+    <!-- Q4 -->
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Netflix</span><span class="q-company">Spotify</span></div>
+        <span class="q-title">Percentile bucket each user into quartiles by spend</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Segment customers into <strong>4 spend quartiles</strong> (Q1=lowest 25%, Q4=highest 25%) based on their total annual spend.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> customer_spend <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> customer_id, <span class="fn">SUM</span>(amount) <span class="kw">AS</span> total_spend
+  <span class="kw">FROM</span> orders
+  <span class="kw">GROUP BY</span> customer_id
+)
+<span class="kw">SELECT</span>
+  customer_id,
+  total_spend,
+  <span class="fn">NTILE</span>(<span class="num">4</span>) <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> total_spend <span class="kw">ASC</span>) <span class="kw">AS</span> quartile
+<span class="kw">FROM</span> customer_spend;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>NTILE(n)</strong> divides the ordered result set into n approximately equal buckets. For deciles use <code>NTILE(10)</code>, for percentiles use <code>NTILE(100)</code>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 2: JOINS ===== -->
+  <section class="pattern-section" id="p2">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 02</span>
+      <div>
+        <div class="pattern-title">🔗 Joins & Self-Joins</div>
+        <div class="pattern-subtitle">INNER · LEFT · SELF · CROSS · ANTI-JOIN patterns</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Joins combine rows from multiple tables. Self-joins compare rows within the same table. Anti-joins (using LEFT JOIN + IS NULL or NOT EXISTS) find records in one table with no match in another — extremely common in FAANG interviews.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Meta</span><span class="q-company">Twitter</span></div>
+        <span class="q-title">Find customers who placed orders in 2023 but NOT in 2024 (Anti-Join)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Find all customers who ordered in 2023 but did NOT place any order in 2024 — a classic churn analysis pattern.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Method 1: LEFT JOIN Anti-Join (most common in interviews)</span>
+<span class="kw">SELECT DISTINCT</span> o23.customer_id
+<span class="kw">FROM</span> orders o23
+<span class="kw">LEFT JOIN</span> orders o24
+  <span class="kw">ON</span> o23.customer_id = o24.customer_id
+  <span class="kw">AND</span> <span class="fn">YEAR</span>(o24.order_date) = <span class="num">2024</span>
+<span class="kw">WHERE</span> <span class="fn">YEAR</span>(o23.order_date) = <span class="num">2023</span>
+  <span class="kw">AND</span> o24.customer_id <span class="kw">IS NULL</span>;
+
+<span class="cm">-- Method 2: NOT EXISTS (often more readable)</span>
+<span class="kw">SELECT DISTINCT</span> customer_id
+<span class="kw">FROM</span> orders o
+<span class="kw">WHERE</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2023</span>
+  <span class="kw">AND NOT EXISTS</span> (
+    <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> orders
+    <span class="kw">WHERE</span> customer_id = o.customer_id
+      <span class="kw">AND</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2024</span>
+  );</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Anti-Join pattern:</strong> LEFT JOIN + WHERE right_table.id IS NULL. Both methods return the same result but <code>NOT EXISTS</code> can be faster when the subquery uses indexes. Avoid <code>NOT IN</code> — it breaks with NULLs.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Flipkart</span></div>
+        <span class="q-title">Self-Join: Find employees earning more than their manager</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">The <code>Employee</code> table has a <code>manager_id</code> column referencing <code>emp_id</code>. Find all employees whose salary exceeds their direct manager's salary.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  e.emp_id,
+  e.name <span class="kw">AS</span> employee_name,
+  e.salary <span class="kw">AS</span> employee_salary,
+  m.name <span class="kw">AS</span> manager_name,
+  m.salary <span class="kw">AS</span> manager_salary
+<span class="kw">FROM</span> Employee e
+<span class="kw">INNER JOIN</span> Employee m
+  <span class="kw">ON</span> e.manager_id = m.emp_id
+<span class="kw">WHERE</span> e.salary > m.salary;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Self-Join:</strong> Join a table to itself using aliases (<code>e</code> for employee, <code>m</code> for manager). This is the canonical interview question for self-joins. The key is <code>e.manager_id = m.emp_id</code> to link the relationship.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">Airbnb</span></div>
+        <span class="q-title">Mutual friends / mutual connections (Cross-Join pattern)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given a <code>friends</code> table with <code>(user_id, friend_id)</code>, find all pairs of users who have <strong>at least 2 mutual friends</strong>.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  f1.user_id <span class="kw">AS</span> user_a,
+  f2.user_id <span class="kw">AS</span> user_b,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> mutual_friends
+<span class="kw">FROM</span> friends f1
+<span class="kw">INNER JOIN</span> friends f2
+  <span class="kw">ON</span> f1.friend_id = f2.friend_id     <span class="cm">-- same friend</span>
+  <span class="kw">AND</span> f1.user_id &lt; f2.user_id        <span class="cm">-- avoid duplicates (A,B) vs (B,A)</span>
+  <span class="kw">AND</span> f1.user_id &lt;> f2.friend_id     <span class="cm">-- not the same person</span>
+<span class="kw">GROUP BY</span> f1.user_id, f2.user_id
+<span class="kw">HAVING</span> <span class="fn">COUNT</span>(*) >= <span class="num">2</span>
+<span class="kw">ORDER BY</span> mutual_friends <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Key insight:</strong> Join friends to itself on <code>friend_id = friend_id</code> — that shared friend is the mutual connection. Use <code>f1.user_id &lt; f2.user_id</code> to output each pair only once. HAVING filters the count.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 3: CTEs ===== -->
+  <section class="pattern-section" id="p3">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 03</span>
+      <div>
+        <div class="pattern-title">🔄 CTEs & Subqueries</div>
+        <div class="pattern-subtitle">WITH clause · Nested subqueries · Correlated subqueries</div>
+      </div>
+    </div>
+    <div class="pattern-desc">CTEs (Common Table Expressions) make complex queries readable by naming intermediate result sets. Correlated subqueries reference the outer query and execute once per row — powerful but can be slow on large datasets. Know when to convert to JOINs.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Meta</span><span class="q-company">Amazon</span></div>
+        <span class="q-title">User retention: % of users who returned the following month</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given a <code>logins</code> table with <code>user_id</code> and <code>login_date</code>, calculate the <strong>monthly retention rate</strong>: percentage of users active in month M who were also active in month M+1.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> monthly_users <span class="kw">AS</span> (
+  <span class="kw">SELECT DISTINCT</span>
+    user_id,
+    <span class="fn">DATE_FORMAT</span>(login_date, <span class="str">'%Y-%m-01'</span>) <span class="kw">AS</span> month
+  <span class="kw">FROM</span> logins
+),
+retention <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    m1.month,
+    <span class="fn">COUNT</span>(m1.user_id) <span class="kw">AS</span> current_users,
+    <span class="fn">COUNT</span>(m2.user_id) <span class="kw">AS</span> retained_users
+  <span class="kw">FROM</span> monthly_users m1
+  <span class="kw">LEFT JOIN</span> monthly_users m2
+    <span class="kw">ON</span> m1.user_id = m2.user_id
+    <span class="kw">AND</span> m2.month = <span class="fn">DATE_ADD</span>(m1.month, <span class="fn">INTERVAL</span> <span class="num">1</span> <span class="fn">MONTH</span>)
+  <span class="kw">GROUP BY</span> m1.month
+)
+<span class="kw">SELECT</span>
+  month,
+  current_users,
+  retained_users,
+  <span class="fn">ROUND</span>(<span class="num">100.0</span> * retained_users / current_users, <span class="num">2</span>) <span class="kw">AS</span> retention_pct
+<span class="kw">FROM</span> retention
+<span class="kw">ORDER BY</span> month;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Pattern:</strong> Chain multiple CTEs — each CTE builds on the previous. First deduplicate to monthly active users, then self-join on next month, then aggregate. Multi-step CTE chains keep code readable and debuggable.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Microsoft</span><span class="q-company">Salesforce</span></div>
+        <span class="q-title">Correlated subquery: products priced above category average</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Find all products whose price is <strong>above the average price</strong> of their respective category.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Method 1: Correlated subquery</span>
+<span class="kw">SELECT</span> product_id, product_name, category, price
+<span class="kw">FROM</span> products p
+<span class="kw">WHERE</span> price > (
+  <span class="kw">SELECT AVG</span>(price)
+  <span class="kw">FROM</span> products
+  <span class="kw">WHERE</span> category = p.category  <span class="cm">-- references outer query</span>
+);
+
+<span class="cm">-- Method 2: CTE (better performance on large tables)</span>
+<span class="kw">WITH</span> cat_avg <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> category, <span class="fn">AVG</span>(price) <span class="kw">AS</span> avg_price
+  <span class="kw">FROM</span> products
+  <span class="kw">GROUP BY</span> category
+)
+<span class="kw">SELECT</span> p.product_id, p.product_name, p.category, p.price
+<span class="kw">FROM</span> products p
+<span class="kw">JOIN</span> cat_avg c <span class="kw">ON</span> p.category = c.category
+<span class="kw">WHERE</span> p.price > c.avg_price;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Correlated vs CTE:</strong> Correlated subquery re-executes for each outer row (O(n) executions). The CTE-based approach computes averages once — always prefer it in production. Both produce identical results.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Uber</span><span class="q-company">Lyft</span></div>
+        <span class="q-title">Rolling 7-day active users</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>user_activity</code> table (<code>user_id</code>, <code>activity_date</code>), compute the <strong>7-day rolling count of distinct active users</strong> for each date.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> daily_active <span class="kw">AS</span> (
+  <span class="kw">SELECT DISTINCT</span> activity_date, user_id
+  <span class="kw">FROM</span> user_activity
+)
+<span class="kw">SELECT</span>
+  d1.activity_date,
+  <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> d2.user_id) <span class="kw">AS</span> rolling_7d_users
+<span class="kw">FROM</span> daily_active d1
+<span class="kw">JOIN</span> daily_active d2
+  <span class="kw">ON</span> d2.activity_date <span class="kw">BETWEEN</span>
+     <span class="fn">DATE_SUB</span>(d1.activity_date, <span class="fn">INTERVAL</span> <span class="num">6</span> <span class="fn">DAY</span>)
+     <span class="kw">AND</span> d1.activity_date
+<span class="kw">GROUP BY</span> d1.activity_date
+<span class="kw">ORDER BY</span> d1.activity_date;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Rolling window via JOIN:</strong> Self-join on a date range (current day − 6 to current day) to pull in 7 days of data per anchor date, then COUNT DISTINCT. Alternative: use window function with <code>RANGE BETWEEN INTERVAL 6 DAY PRECEDING AND CURRENT ROW</code> in PostgreSQL.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 4: AGGREGATIONS ===== -->
+  <section class="pattern-section" id="p4">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 04</span>
+      <div>
+        <div class="pattern-title">📊 Aggregations & HAVING</div>
+        <div class="pattern-subtitle">GROUP BY · HAVING · ROLLUP · GROUPING SETS · Conditional Aggregation</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Aggregations summarize data. The HAVING clause filters aggregated results (WHERE can't use aggregates). Conditional aggregation uses <code>SUM(CASE WHEN...)</code> to compute multiple metrics in one pass — a huge performance win.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">Meta</span></div>
+        <span class="q-title">Conditional aggregation: single-pass multi-metric report</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From an <code>orders</code> table, compute <strong>in a single query</strong>: total orders, total revenue, orders in 2023, orders in 2024, and % change — all per customer.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  customer_id,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> total_orders,
+  <span class="fn">SUM</span>(revenue) <span class="kw">AS</span> total_revenue,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2023</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> orders_2023,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2024</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> orders_2024,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2023</span> <span class="kw">THEN</span> revenue <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> rev_2023,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2024</span> <span class="kw">THEN</span> revenue <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> rev_2024
+<span class="kw">FROM</span> orders
+<span class="kw">GROUP BY</span> customer_id
+<span class="kw">HAVING</span> <span class="fn">COUNT</span>(*) > <span class="num">5</span>   <span class="cm">-- only customers with >5 orders</span>
+<span class="kw">ORDER BY</span> total_revenue <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Conditional aggregation</strong> (<code>SUM(CASE WHEN...)</code>) replaces multiple subqueries or self-joins. It computes multiple sliced metrics in a single table scan — far more efficient. This pattern appears in virtually every data analyst SQL interview.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-easy">Easy</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Walmart</span></div>
+        <span class="q-title">Find departments with more than 3 employees earning above average salary</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">List departments where at least 3 employees each individually earn above the company-wide average salary.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span> department, <span class="fn">COUNT</span>(*) <span class="kw">AS</span> high_earners
+<span class="kw">FROM</span> Employee
+<span class="kw">WHERE</span> salary > (<span class="kw">SELECT AVG</span>(salary) <span class="kw">FROM</span> Employee)
+<span class="kw">GROUP BY</span> department
+<span class="kw">HAVING</span> <span class="fn">COUNT</span>(*) >= <span class="num">3</span>
+<span class="kw">ORDER BY</span> high_earners <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>WHERE vs HAVING:</strong> WHERE filters individual rows before aggregation. HAVING filters groups after aggregation. Rule: if you reference an aggregate function (COUNT, SUM, AVG), use HAVING; otherwise WHERE.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Microsoft</span><span class="q-company">Oracle</span></div>
+        <span class="q-title">ROLLUP: Sales summary with subtotals and grand total</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Generate a sales report with totals at the product level, category level subtotals, and a grand total — all in one query.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  <span class="fn">COALESCE</span>(category, <span class="str">'ALL CATEGORIES'</span>) <span class="kw">AS</span> category,
+  <span class="fn">COALESCE</span>(product_name, <span class="str">'SUBTOTAL'</span>) <span class="kw">AS</span> product_name,
+  <span class="fn">SUM</span>(sales_amount) <span class="kw">AS</span> total_sales,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> num_orders
+<span class="kw">FROM</span> sales
+<span class="kw">GROUP BY</span> <span class="fn">ROLLUP</span>(category, product_name)
+<span class="kw">ORDER BY</span> category, product_name;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>ROLLUP</strong> automatically generates subtotals from right to left in the GROUP BY list, plus a grand total. NULLs in the result indicate the rollup rows — use COALESCE to label them. <code>GROUPING SETS</code> gives finer control over which combinations to include.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 5: TOP-N / RANKING ===== -->
+  <section class="pattern-section" id="p5">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 05</span>
+      <div>
+        <div class="pattern-title">🏆 Top-N & Ranking</div>
+        <div class="pattern-subtitle">Top 3 per group · Nth highest · Leaderboards</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Top-N queries are extremely common — finding the top 3 products per category, Nth highest salary, leaderboard positions. The key pattern is: window function to rank, then filter on rank in outer query.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Google</span></div>
+        <span class="q-title">Top 3 products by revenue in each category</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Find the top 3 best-selling products (by total revenue) within each product category.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> product_revenue <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    p.product_id,
+    p.product_name,
+    p.category,
+    <span class="fn">SUM</span>(o.revenue) <span class="kw">AS</span> total_revenue
+  <span class="kw">FROM</span> products p
+  <span class="kw">JOIN</span> order_items o <span class="kw">ON</span> p.product_id = o.product_id
+  <span class="kw">GROUP BY</span> p.product_id, p.product_name, p.category
+),
+ranked <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> *,
+    <span class="fn">RANK</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> category <span class="kw">ORDER BY</span> total_revenue <span class="kw">DESC</span>) <span class="kw">AS</span> rnk
+  <span class="kw">FROM</span> product_revenue
+)
+<span class="kw">SELECT</span> category, product_name, total_revenue, rnk
+<span class="kw">FROM</span> ranked
+<span class="kw">WHERE</span> rnk <= <span class="num">3</span>
+<span class="kw">ORDER BY</span> category, rnk;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Top-N per group template:</strong> (1) Aggregate, (2) Apply window rank with PARTITION BY group, (3) Filter rank ≤ N. Choose RANK for "top N including ties", ROW_NUMBER for exactly N rows.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-easy">Easy</span>
+        <div class="q-company-tags"><span class="q-company">Meta</span><span class="q-company">LinkedIn</span></div>
+        <span class="q-title">Nth highest salary (no window functions)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Write a query to find the <strong>Nth highest distinct salary</strong> from the Employee table without using window functions.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Set N = 3 for 3rd highest</span>
+<span class="kw">SELECT MAX</span>(salary) <span class="kw">AS</span> nth_highest
+<span class="kw">FROM</span> Employee
+<span class="kw">WHERE</span> salary &lt; (
+  <span class="kw">SELECT MAX</span>(salary)
+  <span class="kw">FROM</span> Employee
+  <span class="kw">WHERE</span> salary &lt; (
+    <span class="kw">SELECT MAX</span>(salary) <span class="kw">FROM</span> Employee
+  )
+);
+
+<span class="cm">-- Generic approach for any N using subquery</span>
+<span class="kw">SELECT DISTINCT</span> salary
+<span class="kw">FROM</span> Employee e1
+<span class="kw">WHERE</span> (<span class="kw">SELECT COUNT</span>(<span class="kw">DISTINCT</span> salary)
+       <span class="kw">FROM</span> Employee e2
+       <span class="kw">WHERE</span> e2.salary > e1.salary) = <span class="num">2</span>  <span class="cm">-- N-1 salaries above it</span>
+<span class="kw">LIMIT</span> <span class="num">1</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Logic:</strong> The Nth highest salary has exactly N-1 distinct salaries above it. The correlated subquery counts salaries greater than the current row's salary; if that count equals N-1, it's the Nth highest. For interviews, modern DENSE_RANK approach is preferred.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">DoorDash</span><span class="q-company">Swiggy</span></div>
+        <span class="q-title">Top restaurant by orders in each city per month</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From an <code>orders</code> table with <code>city</code>, <code>restaurant_id</code>, and <code>order_date</code>, find the <strong>#1 restaurant per city per month</strong> by order count.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> monthly_orders <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    city,
+    restaurant_id,
+    <span class="fn">DATE_FORMAT</span>(order_date, <span class="str">'%Y-%m'</span>) <span class="kw">AS</span> month,
+    <span class="fn">COUNT</span>(*) <span class="kw">AS</span> order_count
+  <span class="kw">FROM</span> orders
+  <span class="kw">GROUP BY</span> city, restaurant_id, month
+),
+ranked <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> *,
+    <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
+      <span class="kw">PARTITION BY</span> city, month
+      <span class="kw">ORDER BY</span> order_count <span class="kw">DESC</span>, restaurant_id <span class="kw">ASC</span>
+    ) <span class="kw">AS</span> rn
+  <span class="kw">FROM</span> monthly_orders
+)
+<span class="kw">SELECT</span> city, month, restaurant_id, order_count
+<span class="kw">FROM</span> ranked
+<span class="kw">WHERE</span> rn = <span class="num">1</span>
+<span class="kw">ORDER BY</span> city, month;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Tie-breaking:</strong> Use <code>ROW_NUMBER</code> when exactly 1 winner is needed. Add a deterministic tie-breaker (<code>restaurant_id ASC</code>) to ensure consistent results. PARTITION BY city, month creates a separate race per city-month combination.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 6: PIVOT ===== -->
+  <section class="pattern-section" id="p6">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 06</span>
+      <div>
+        <div class="pattern-title">🔀 Pivot & Unpivot</div>
+        <div class="pattern-subtitle">Rows to columns · Conditional aggregation pivot</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Pivoting transforms row values into column headers. SQL doesn't have a native PIVOT in most dialects — use conditional aggregation (SUM/MAX + CASE WHEN) to simulate it.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Microsoft</span><span class="q-company">Infosys</span></div>
+        <span class="q-title">Pivot monthly sales: rows → columns per month</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Transform a <code>sales</code> table where each row is <code>(product, month, amount)</code> into a wide format with one column per month: <code>product | Jan | Feb | Mar | ...</code></div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  product,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> month = <span class="str">'Jan'</span> <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> Jan,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> month = <span class="str">'Feb'</span> <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> Feb,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> month = <span class="str">'Mar'</span> <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> Mar,
+  <span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> month = <span class="str">'Apr'</span> <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> Apr,
+  <span class="fn">SUM</span>(amount) <span class="kw">AS</span> annual_total
+<span class="kw">FROM</span> sales
+<span class="kw">GROUP BY</span> product
+<span class="kw">ORDER BY</span> annual_total <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Pivot pattern:</strong> <code>SUM(CASE WHEN category = 'X' THEN value ELSE 0 END)</code> for each distinct category value you want as a column. Use MAX instead of SUM for non-numeric pivots (e.g., status flags).
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">TCS</span><span class="q-company">Wipro</span></div>
+        <span class="q-title">Unpivot: wide format back to long format</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given a wide table <code>scores(student, math, science, english)</code>, unpivot to a long format: <code>(student, subject, score)</code>.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Using UNION ALL (works in all SQL dialects)</span>
+<span class="kw">SELECT</span> student, <span class="str">'Math'</span> <span class="kw">AS</span> subject, math <span class="kw">AS</span> score <span class="kw">FROM</span> scores
+<span class="kw">UNION ALL</span>
+<span class="kw">SELECT</span> student, <span class="str">'Science'</span>, science <span class="kw">FROM</span> scores
+<span class="kw">UNION ALL</span>
+<span class="kw">SELECT</span> student, <span class="str">'English'</span>, english <span class="kw">FROM</span> scores
+<span class="kw">ORDER BY</span> student, subject;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>UNION ALL unpivot:</strong> Each SELECT pulls one column and labels it. UNION ALL (not UNION) preserves duplicates and is faster since it skips the deduplication step. PostgreSQL also has <code>UNNEST</code> and the <code>UNPIVOT</code> operator.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 7: RUNNING TOTALS ===== -->
+  <section class="pattern-section" id="p7">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 07</span>
+      <div>
+        <div class="pattern-title">📈 Running Totals & Cumulative Metrics</div>
+        <div class="pattern-subtitle">Cumulative SUM · Moving averages · Frame clauses</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Running totals and moving averages use window function frame clauses. The default frame <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> computes cumulative sums. Bounded frames like <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> compute moving windows.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Shopify</span></div>
+        <span class="q-title">Cumulative sum of revenue by date</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Calculate the daily revenue and running cumulative total revenue for the year, ordered by date.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  order_date,
+  <span class="fn">SUM</span>(revenue) <span class="kw">AS</span> daily_revenue,
+  <span class="fn">SUM</span>(<span class="fn">SUM</span>(revenue)) <span class="kw">OVER</span> (
+    <span class="kw">ORDER BY</span> order_date
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
+  ) <span class="kw">AS</span> cumulative_revenue
+<span class="kw">FROM</span> orders
+<span class="kw">WHERE</span> <span class="fn">YEAR</span>(order_date) = <span class="num">2024</span>
+<span class="kw">GROUP BY</span> order_date
+<span class="kw">ORDER BY</span> order_date;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Double SUM pattern:</strong> The outer <code>SUM()</code> is the window function; the inner <code>SUM(revenue)</code> is the group aggregate. This computes daily totals first, then applies the cumulative window on top. Note <code>ROWS</code> vs <code>RANGE</code>: ROWS is usually preferred for performance.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Netflix</span><span class="q-company">Hotstar</span></div>
+        <span class="q-title">7-day moving average of daily active users</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Compute a 7-day moving average of daily active users to smooth out weekly seasonality.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> daily_dau <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    activity_date,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> user_id) <span class="kw">AS</span> dau
+  <span class="kw">FROM</span> user_activity
+  <span class="kw">GROUP BY</span> activity_date
+)
+<span class="kw">SELECT</span>
+  activity_date,
+  dau,
+  <span class="fn">ROUND</span>(
+    <span class="fn">AVG</span>(dau) <span class="kw">OVER</span> (
+      <span class="kw">ORDER BY</span> activity_date
+      <span class="kw">ROWS BETWEEN</span> <span class="num">6</span> <span class="kw">PRECEDING AND CURRENT ROW</span>
+    ), <span class="num">2</span>
+  ) <span class="kw">AS</span> moving_avg_7d
+<span class="kw">FROM</span> daily_dau
+<span class="kw">ORDER BY</span> activity_date;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Frame clause <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code></strong> means: current row + 6 previous rows = 7-row window. For a trailing 30-day window, use <code>ROWS BETWEEN 29 PRECEDING AND CURRENT ROW</code>. ROWS uses physical row count; RANGE uses value distance.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 8: STRINGS ===== -->
+  <section class="pattern-section" id="p8">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 08</span>
+      <div>
+        <div class="pattern-title">🔍 String Patterns & Parsing</div>
+        <div class="pattern-subtitle">LIKE · REGEXP · SUBSTRING · POSITION · Email/URL parsing</div>
+      </div>
+    </div>
+    <div class="pattern-desc">String manipulation questions test ability to extract, clean, and validate text data — common in data engineering interviews. Master SUBSTRING_INDEX, REGEXP_LIKE, TRIM, REPLACE, and CONCAT.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">Meta</span></div>
+        <span class="q-title">Extract domain from email addresses</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>users</code> table with an <code>email</code> column, extract the <strong>domain part</strong> (e.g., <code>gmail.com</code> from <code>alice@gmail.com</code>) and count users per domain.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  <span class="fn">SUBSTRING</span>(email, <span class="fn">POSITION</span>(<span class="str">'@'</span> <span class="kw">IN</span> email) + <span class="num">1</span>) <span class="kw">AS</span> domain,
+  <span class="cm">-- MySQL shorthand:</span>
+  <span class="fn">SUBSTRING_INDEX</span>(email, <span class="str">'@'</span>, -<span class="num">1</span>) <span class="kw">AS</span> domain_mysql,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> user_count
+<span class="kw">FROM</span> users
+<span class="kw">WHERE</span> email <span class="kw">REGEXP</span> <span class="str">'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'</span>
+<span class="kw">GROUP BY</span> <span class="num">1</span>
+<span class="kw">ORDER BY</span> user_count <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>SUBSTRING_INDEX(str, delim, count):</strong> count=-1 gets everything after the LAST occurrence of the delimiter. count=1 gets everything before the FIRST occurrence. Always validate email format first with REGEXP to exclude malformed entries.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-easy">Easy</span>
+        <div class="q-company-tags"><span class="q-company">TCS</span><span class="q-company">Cognizant</span></div>
+        <span class="q-title">Find users with duplicate email prefixes (before the @)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Find all users who share the same email username (part before @) but have different domains — potentially duplicate accounts.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> user_prefix <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    user_id,
+    email,
+    <span class="fn">SUBSTRING_INDEX</span>(email, <span class="str">'@'</span>, <span class="num">1</span>) <span class="kw">AS</span> email_prefix
+  <span class="kw">FROM</span> users
+)
+<span class="kw">SELECT</span> u1.user_id, u1.email, u2.user_id <span class="kw">AS</span> dup_user_id, u2.email <span class="kw">AS</span> dup_email
+<span class="kw">FROM</span> user_prefix u1
+<span class="kw">JOIN</span> user_prefix u2
+  <span class="kw">ON</span> u1.email_prefix = u2.email_prefix
+  <span class="kw">AND</span> u1.user_id &lt; u2.user_id
+<span class="kw">ORDER BY</span> u1.email_prefix;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 9: DATE & TIME ===== -->
+  <section class="pattern-section" id="p9">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 09</span>
+      <div>
+        <div class="pattern-title">📅 Date & Time Manipulation</div>
+        <div class="pattern-subtitle">DATEDIFF · DATE_TRUNC · DATE_ADD · EXTRACT · Cohort analysis</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Date functions vary by SQL dialect — know MySQL vs PostgreSQL vs BigQuery differences. Key operations: date truncation, interval arithmetic, weekday extraction, and cohort date calculations.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Airbnb</span><span class="q-company">Booking.com</span></div>
+        <span class="q-title">Cohort analysis: retention by sign-up month</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given <code>users</code> (user_id, signup_date) and <code>events</code> (user_id, event_date), compute the <strong>monthly cohort retention table</strong>: for each signup cohort, what % of users were active in months 0, 1, 2, 3 after signup?</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> cohorts <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    user_id,
+    <span class="fn">DATE_FORMAT</span>(signup_date, <span class="str">'%Y-%m-01'</span>) <span class="kw">AS</span> cohort_month
+  <span class="kw">FROM</span> users
+),
+user_activity <span class="kw">AS</span> (
+  <span class="kw">SELECT DISTINCT</span>
+    e.user_id,
+    c.cohort_month,
+    <span class="fn">TIMESTAMPDIFF</span>(<span class="fn">MONTH</span>, c.cohort_month, e.event_date) <span class="kw">AS</span> month_number
+  <span class="kw">FROM</span> events e
+  <span class="kw">JOIN</span> cohorts c <span class="kw">ON</span> e.user_id = c.user_id
+  <span class="kw">WHERE</span> <span class="fn">TIMESTAMPDIFF</span>(<span class="fn">MONTH</span>, c.cohort_month, e.event_date) <span class="kw">BETWEEN</span> <span class="num">0</span> <span class="kw">AND</span> <span class="num">3</span>
+),
+cohort_size <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> cohort_month, <span class="fn">COUNT</span>(DISTINCT user_id) <span class="kw">AS</span> total_users
+  <span class="kw">FROM</span> cohorts <span class="kw">GROUP BY</span> cohort_month
+)
+<span class="kw">SELECT</span>
+  ua.cohort_month,
+  cs.total_users,
+  ua.month_number,
+  <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> ua.user_id) <span class="kw">AS</span> active_users,
+  <span class="fn">ROUND</span>(<span class="num">100.0</span> * <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> ua.user_id) / cs.total_users, <span class="num">1</span>) <span class="kw">AS</span> retention_pct
+<span class="kw">FROM</span> user_activity ua
+<span class="kw">JOIN</span> cohort_size cs <span class="kw">ON</span> ua.cohort_month = cs.cohort_month
+<span class="kw">GROUP BY</span> ua.cohort_month, cs.total_users, ua.month_number
+<span class="kw">ORDER BY</span> ua.cohort_month, ua.month_number;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Cohort analysis</strong> is the #1 most-asked analytical SQL pattern at product-focused companies (Airbnb, Meta, Spotify). The key is computing the <strong>relative month</strong> since signup using TIMESTAMPDIFF or DATEDIFF, then grouping by cohort_month + month_number.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Zomato</span><span class="q-company">Uber Eats</span></div>
+        <span class="q-title">Average delivery time by day of week</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>deliveries</code> table with <code>order_time</code> and <code>delivery_time</code>, find the <strong>average delivery duration in minutes</strong> broken down by day of week.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  <span class="fn">DAYNAME</span>(order_time) <span class="kw">AS</span> day_of_week,
+  <span class="fn">DAYOFWEEK</span>(order_time) <span class="kw">AS</span> day_num,
+  <span class="fn">ROUND</span>(<span class="fn">AVG</span>(<span class="fn">TIMESTAMPDIFF</span>(<span class="fn">MINUTE</span>, order_time, delivery_time)), <span class="num">2</span>) <span class="kw">AS</span> avg_delivery_mins,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> total_orders
+<span class="kw">FROM</span> deliveries
+<span class="kw">WHERE</span> delivery_time > order_time   <span class="cm">-- data quality check</span>
+<span class="kw">GROUP BY</span> <span class="fn">DAYNAME</span>(order_time), <span class="fn">DAYOFWEEK</span>(order_time)
+<span class="kw">ORDER BY</span> day_num;</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">BigQuery</span></div>
+        <span class="q-title">Find users active for 3 or more consecutive days</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>logins</code> table, identify users who logged in on <strong>3 or more consecutive days</strong> at any point.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> daily_logins <span class="kw">AS</span> (
+  <span class="kw">SELECT DISTINCT</span> user_id, <span class="fn">DATE</span>(login_time) <span class="kw">AS</span> login_date
+  <span class="kw">FROM</span> logins
+),
+with_lag <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    user_id,
+    login_date,
+    <span class="fn">LAG</span>(login_date, <span class="num">1</span>) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> login_date) <span class="kw">AS</span> prev1,
+    <span class="fn">LAG</span>(login_date, <span class="num">2</span>) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> login_date) <span class="kw">AS</span> prev2
+  <span class="kw">FROM</span> daily_logins
+)
+<span class="kw">SELECT DISTINCT</span> user_id
+<span class="kw">FROM</span> with_lag
+<span class="kw">WHERE</span> <span class="fn">DATEDIFF</span>(login_date, prev1) = <span class="num">1</span>
+  <span class="kw">AND</span> <span class="fn">DATEDIFF</span>(prev1, prev2) = <span class="num">1</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Consecutive day check:</strong> Use LAG(date, 1) and LAG(date, 2) to look back. If the difference between the current date and the previous is 1 day, AND between previous and the one before is also 1 day → 3 consecutive days. Alternatively, use the Gaps & Islands pattern (Pattern 10).
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 10: GAPS & ISLANDS ===== -->
+  <section class="pattern-section" id="p10">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 10</span>
+      <div>
+        <div class="pattern-title">🎯 Gaps & Islands</div>
+        <div class="pattern-subtitle">Consecutive sequences · Streak detection · Event grouping</div>
+      </div>
+    </div>
+    <div class="pattern-desc">The Gaps & Islands problem identifies consecutive groups (islands) within ordered data. Classic approach: subtract ROW_NUMBER from the value — if consecutive, the difference is constant, forming a group.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Meta</span><span class="q-company">Google</span></div>
+        <span class="q-title">Find longest login streak per user</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>logins</code> table, find the <strong>longest consecutive login streak</strong> (days) for each user.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> daily <span class="kw">AS</span> (
+  <span class="kw">SELECT DISTINCT</span> user_id, <span class="fn">DATE</span>(login_time) <span class="kw">AS</span> login_date
+  <span class="kw">FROM</span> logins
+),
+grp <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    user_id,
+    login_date,
+    <span class="cm">-- Subtract row_number from date → same value for consecutive dates</span>
+    <span class="fn">DATE_SUB</span>(login_date,
+      <span class="fn">INTERVAL</span> <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span>
+        (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> login_date) <span class="fn">DAY</span>
+    ) <span class="kw">AS</span> grp_key
+  <span class="kw">FROM</span> daily
+)
+<span class="kw">SELECT</span>
+  user_id,
+  <span class="fn">MAX</span>(<span class="fn">COUNT</span>(*)) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id) <span class="kw">AS</span> longest_streak
+<span class="kw">FROM</span> grp
+<span class="kw">GROUP BY</span> user_id, grp_key
+<span class="kw">ORDER BY</span> user_id;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Gaps & Islands key insight:</strong> For consecutive dates, <code>date - row_number</code> is constant. Rows with the same constant belong to the same consecutive group (island). GROUP BY that constant, COUNT the group size → that's the streak length.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Walmart</span></div>
+        <span class="q-title">Find date ranges when a product was continuously in stock</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">A <code>stock_events</code> table records daily product availability (1=in_stock, 0=out_of_stock). Find the <strong>start and end date of each continuous in-stock period</strong> per product.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> in_stock <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> product_id, event_date
+  <span class="kw">FROM</span> stock_events
+  <span class="kw">WHERE</span> in_stock = <span class="num">1</span>
+),
+grp <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    product_id, event_date,
+    <span class="fn">DATE_SUB</span>(event_date,
+      <span class="fn">INTERVAL</span> <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span>
+        (<span class="kw">PARTITION BY</span> product_id <span class="kw">ORDER BY</span> event_date) <span class="fn">DAY</span>
+    ) <span class="kw">AS</span> island
+  <span class="kw">FROM</span> in_stock
+)
+<span class="kw">SELECT</span>
+  product_id,
+  <span class="fn">MIN</span>(event_date) <span class="kw">AS</span> stock_start,
+  <span class="fn">MAX</span>(event_date) <span class="kw">AS</span> stock_end,
+  <span class="fn">DATEDIFF</span>(<span class="fn">MAX</span>(event_date), <span class="fn">MIN</span>(event_date)) + <span class="num">1</span> <span class="kw">AS</span> days_in_stock
+<span class="kw">FROM</span> grp
+<span class="kw">GROUP BY</span> product_id, island
+<span class="kw">ORDER BY</span> product_id, stock_start;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 11: NULL HANDLING ===== -->
+  <section class="pattern-section" id="p11">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 11</span>
+      <div>
+        <div class="pattern-title">⛔ NULL Handling</div>
+        <div class="pattern-subtitle">COALESCE · NULLIF · IS NULL · NULL in aggregates</div>
+      </div>
+    </div>
+    <div class="pattern-desc">NULLs are tricky — they don't equal anything, including themselves. NULL in arithmetic returns NULL. COUNT(*) counts NULLs; COUNT(col) ignores them. Master COALESCE, NULLIF, IS NULL / IS NOT NULL, and NULL-safe comparisons.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Microsoft</span><span class="q-company">SAP</span></div>
+        <span class="q-title">Fill NULL values with the most recent non-NULL value (forward fill)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">A <code>stock_prices</code> table has NULL prices on days when the market was closed. Fill each NULL with the <strong>most recent non-NULL price</strong> (forward fill).</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> numbered <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    price_date,
+    price,
+    <span class="cm">-- Create a group ID that increments only when price is not NULL</span>
+    <span class="fn">COUNT</span>(price) <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> price_date) <span class="kw">AS</span> grp
+  <span class="kw">FROM</span> stock_prices
+)
+<span class="kw">SELECT</span>
+  price_date,
+  price,
+  <span class="fn">MAX</span>(price) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> grp <span class="kw">ORDER BY</span> price_date) <span class="kw">AS</span> filled_price
+<span class="kw">FROM</span> numbered;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Forward fill trick:</strong> <code>COUNT(price)</code> counts non-NULLs — it increments only on non-NULL rows, creating a stable group ID for each "island" of NULLs. Then MAX OVER that group propagates the last known value. PostgreSQL has a cleaner approach using <code>LAST_VALUE IGNORE NULLS</code> in some versions.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-easy">Easy</span>
+        <div class="q-company-tags"><span class="q-company">All Companies</span></div>
+        <span class="q-title">NULL trap: Why NOT IN fails with NULLs</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Explain why this query returns 0 rows even though matching records exist: <code>SELECT * FROM A WHERE id NOT IN (SELECT manager_id FROM Employee)</code> when <code>manager_id</code> has NULLs.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Fix & Explanation</div>
+          <div class="code-block"><span class="cm">-- ❌ BROKEN: Returns 0 rows if subquery contains any NULL</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> A
+<span class="kw">WHERE</span> id <span class="kw">NOT IN</span> (<span class="kw">SELECT</span> manager_id <span class="kw">FROM</span> Employee);
+
+<span class="cm">-- The issue: NULL comparison → x NOT IN (1, 2, NULL)</span>
+<span class="cm">-- → x != 1 AND x != 2 AND x != NULL</span>
+<span class="cm">-- → x != NULL is always UNKNOWN → whole expr = UNKNOWN</span>
+
+<span class="cm">-- ✅ FIX 1: Filter NULLs in subquery</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> A
+<span class="kw">WHERE</span> id <span class="kw">NOT IN</span> (
+  <span class="kw">SELECT</span> manager_id <span class="kw">FROM</span> Employee
+  <span class="kw">WHERE</span> manager_id <span class="kw">IS NOT NULL</span>
+);
+
+<span class="cm">-- ✅ FIX 2: Use NOT EXISTS (NULL-safe)</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> A
+<span class="kw">WHERE NOT EXISTS</span> (
+  <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> Employee
+  <span class="kw">WHERE</span> manager_id = A.id
+);</div>
+        </div>
+        <div class="q-explanation">
+          <strong>NULL trap:</strong> This is a top interview gotcha. Any comparison with NULL returns UNKNOWN (not TRUE or FALSE). NOT IN short-circuits to UNKNOWN if the subquery contains any NULL. Always prefer NOT EXISTS over NOT IN when the subquery column may contain NULLs.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 12: RECURSIVE CTE ===== -->
+  <section class="pattern-section" id="p12">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 12</span>
+      <div>
+        <div class="pattern-title">🔁 Recursive CTEs</div>
+        <div class="pattern-subtitle">Org hierarchy · BOM traversal · Number series generation</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Recursive CTEs traverse hierarchical or graph data (org charts, bill of materials, category trees). Structure: anchor query UNION ALL recursive query that references the CTE itself. Supported in PostgreSQL, SQL Server, MySQL 8+, BigQuery.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Microsoft</span></div>
+        <span class="q-title">Find all direct and indirect reports for a manager</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Given an <code>Employee</code> table with <code>manager_id</code>, find ALL employees (direct and indirect) under a given manager (e.g., manager_id = 1).</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH RECURSIVE</span> org_tree <span class="kw">AS</span> (
+  <span class="cm">-- Anchor: start with the given manager</span>
+  <span class="kw">SELECT</span> emp_id, name, manager_id, <span class="num">0</span> <span class="kw">AS</span> level
+  <span class="kw">FROM</span> Employee
+  <span class="kw">WHERE</span> emp_id = <span class="num">1</span>
+
+  <span class="kw">UNION ALL</span>
+
+  <span class="cm">-- Recursive: find direct reports of each found employee</span>
+  <span class="kw">SELECT</span> e.emp_id, e.name, e.manager_id, ot.level + <span class="num">1</span>
+  <span class="kw">FROM</span> Employee e
+  <span class="kw">INNER JOIN</span> org_tree ot <span class="kw">ON</span> e.manager_id = ot.emp_id
+)
+<span class="kw">SELECT</span> emp_id, name, level <span class="kw">AS</span> org_depth
+<span class="kw">FROM</span> org_tree
+<span class="kw">WHERE</span> emp_id &lt;> <span class="num">1</span>  <span class="cm">-- exclude the manager themselves</span>
+<span class="kw">ORDER BY</span> level, name;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Recursive CTE structure:</strong><br>
+          1. <strong>Anchor</strong>: The base case (root nodes)<br>
+          2. <strong>UNION ALL</strong> (not UNION — never deduplicate mid-recursion)<br>
+          3. <strong>Recursive member</strong>: Joins the CTE to itself to find next level<br>
+          Always include a termination condition (no more rows to join). Add a <code>depth</code> column to detect cycles and add a MAXRECURSION limit if needed.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Any</span></div>
+        <span class="q-title">Generate a date series / number sequence with recursive CTE</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Generate a continuous date series from 2024-01-01 to 2024-12-31 to use as a calendar dimension (fill gaps in time-series data).</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH RECURSIVE</span> date_series <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> <span class="fn">CAST</span>(<span class="str">'2024-01-01'</span> <span class="kw">AS</span> <span class="tp">DATE</span>) <span class="kw">AS</span> dt
+
+  <span class="kw">UNION ALL</span>
+
+  <span class="kw">SELECT</span> <span class="fn">DATE_ADD</span>(dt, <span class="fn">INTERVAL</span> <span class="num">1</span> <span class="fn">DAY</span>)
+  <span class="kw">FROM</span> date_series
+  <span class="kw">WHERE</span> dt &lt; <span class="str">'2024-12-31'</span>  <span class="cm">-- termination condition</span>
+)
+<span class="kw">SELECT</span> dt <span class="kw">AS</span> calendar_date
+<span class="kw">FROM</span> date_series;
+
+<span class="cm">-- Use this to find days with zero orders:</span>
+<span class="kw">SELECT</span> ds.dt, <span class="fn">COALESCE</span>(<span class="fn">COUNT</span>(o.order_id), <span class="num">0</span>) <span class="kw">AS</span> order_count
+<span class="kw">FROM</span> date_series ds
+<span class="kw">LEFT JOIN</span> orders o <span class="kw">ON</span> <span class="fn">DATE</span>(o.order_date) = ds.dt
+<span class="kw">GROUP BY</span> ds.dt <span class="kw">ORDER BY</span> ds.dt;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 13: DEDUP ===== -->
+  <section class="pattern-section" id="p13">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 13</span>
+      <div>
+        <div class="pattern-title">📋 Deduplication</div>
+        <div class="pattern-subtitle">Remove duplicates · Keep latest record · Distinct on</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Deduplication is essential in data pipelines. The standard technique: ROW_NUMBER() OVER (PARTITION BY key_columns ORDER BY sort_column) — keep rows where rn = 1.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">All Data Eng Roles</span></div>
+        <span class="q-title">Keep only the most recent record per user (dedup by latest)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">A <code>user_profiles</code> table has duplicate user records (multiple rows per user_id with different <code>updated_at</code> timestamps). Keep only the <strong>most recent row per user</strong>.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- Method 1: ROW_NUMBER (most versatile)</span>
+<span class="kw">WITH</span> deduped <span class="kw">AS</span> (
+  <span class="kw">SELECT</span> *,
+    <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
+      <span class="kw">PARTITION BY</span> user_id
+      <span class="kw">ORDER BY</span> updated_at <span class="kw">DESC</span>
+    ) <span class="kw">AS</span> rn
+  <span class="kw">FROM</span> user_profiles
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> deduped <span class="kw">WHERE</span> rn = <span class="num">1</span>;
+
+<span class="cm">-- Method 2: Subquery with MAX (simpler but loses non-key columns)</span>
+<span class="kw">SELECT</span> u.*
+<span class="kw">FROM</span> user_profiles u
+<span class="kw">INNER JOIN</span> (
+  <span class="kw">SELECT</span> user_id, <span class="fn">MAX</span>(updated_at) <span class="kw">AS</span> latest
+  <span class="kw">FROM</span> user_profiles
+  <span class="kw">GROUP BY</span> user_id
+) latest_u
+<span class="kw">ON</span> u.user_id = latest_u.user_id
+<span class="kw">AND</span> u.updated_at = latest_u.latest;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>ROW_NUMBER dedup</strong> is the universal template. Always specify what "latest" means (updated_at DESC, id DESC, etc.). Method 2 via MAX JOIN is simpler but can return multiple rows if two records share the exact same max timestamp.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Amazon</span><span class="q-company">Flipkart</span></div>
+        <span class="q-title">Delete duplicate rows, keep one</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">The <code>orders</code> table has exact duplicate rows. Write a query to <strong>delete all duplicates</strong> keeping exactly one copy of each.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- MySQL: DELETE using ROW_NUMBER in CTE</span>
+<span class="kw">WITH</span> ranked <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    order_id,
+    <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
+      <span class="kw">PARTITION BY</span> customer_id, order_date, amount
+      <span class="kw">ORDER BY</span> order_id <span class="kw">ASC</span>
+    ) <span class="kw">AS</span> rn
+  <span class="kw">FROM</span> orders
+)
+<span class="kw">DELETE FROM</span> orders
+<span class="kw">WHERE</span> order_id <span class="kw">IN</span> (
+  <span class="kw">SELECT</span> order_id <span class="kw">FROM</span> ranked <span class="kw">WHERE</span> rn > <span class="num">1</span>
+);
+
+<span class="cm">-- PostgreSQL: USING ctid (row identifier)</span>
+<span class="kw">DELETE FROM</span> orders
+<span class="kw">WHERE</span> ctid <span class="kw">NOT IN</span> (
+  <span class="kw">SELECT MIN</span>(ctid)
+  <span class="kw">FROM</span> orders
+  <span class="kw">GROUP BY</span> customer_id, order_date, amount
+);</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 14: PERCENTILES ===== -->
+  <section class="pattern-section" id="p14">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 14</span>
+      <div>
+        <div class="pattern-title">🌡️ Percentiles & Statistical Functions</div>
+        <div class="pattern-subtitle">PERCENTILE_CONT · MEDIAN · STDDEV · MODE</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Statistical aggregates help in data analysis interviews. Know PERCENTILE_CONT (continuous interpolation), PERCENTILE_DISC (discrete value), STDDEV_POP, and how to compute medians without built-in functions.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Google</span><span class="q-company">Data Science Roles</span></div>
+        <span class="q-title">Compute median salary without PERCENTILE functions (MySQL)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Find the <strong>median salary</strong> in each department in MySQL (which lacks PERCENTILE_CONT in older versions).</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="cm">-- PostgreSQL / modern SQL (cleaner)</span>
+<span class="kw">SELECT</span>
+  department,
+  <span class="fn">PERCENTILE_CONT</span>(<span class="num">0.5</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> salary) <span class="kw">AS</span> median_salary
+<span class="kw">FROM</span> Employee
+<span class="kw">GROUP BY</span> department;
+
+<span class="cm">-- MySQL workaround using ROW_NUMBER</span>
+<span class="kw">WITH</span> ranked <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    department, salary,
+    <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> department <span class="kw">ORDER BY</span> salary) <span class="kw">AS</span> rn,
+    <span class="fn">COUNT</span>(*) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> department) <span class="kw">AS</span> cnt
+  <span class="kw">FROM</span> Employee
+)
+<span class="kw">SELECT</span>
+  department,
+  <span class="fn">AVG</span>(salary) <span class="kw">AS</span> median_salary
+<span class="kw">FROM</span> ranked
+<span class="kw">WHERE</span> rn <span class="kw">IN</span> (<span class="fn">FLOOR</span>((cnt + <span class="num">1</span>) / <span class="num">2.0</span>), <span class="fn">CEIL</span>((cnt + <span class="num">1</span>) / <span class="num">2.0</span>))
+<span class="kw">GROUP BY</span> department;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Median logic:</strong> For odd n, the median is at position (n+1)/2. For even n, average of n/2 and n/2+1. The FLOOR/CEIL trick elegantly handles both cases — for odd n they equal the same position; for even n they give the two middle positions.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-medium">Medium</span>
+        <div class="q-company-tags"><span class="q-company">Netflix</span><span class="q-company">Analytics Roles</span></div>
+        <span class="q-title">P50, P90, P99 latency analysis</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From an <code>api_calls</code> table with <code>response_time_ms</code>, compute P50, P90, P95, and P99 latencies per API endpoint.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">SELECT</span>
+  endpoint,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> total_calls,
+  <span class="fn">ROUND</span>(<span class="fn">AVG</span>(response_time_ms), <span class="num">2</span>) <span class="kw">AS</span> avg_ms,
+  <span class="fn">PERCENTILE_CONT</span>(<span class="num">0.50</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> response_time_ms) <span class="kw">AS</span> p50,
+  <span class="fn">PERCENTILE_CONT</span>(<span class="num">0.90</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> response_time_ms) <span class="kw">AS</span> p90,
+  <span class="fn">PERCENTILE_CONT</span>(<span class="num">0.95</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> response_time_ms) <span class="kw">AS</span> p95,
+  <span class="fn">PERCENTILE_CONT</span>(<span class="num">0.99</span>) <span class="kw">WITHIN GROUP</span> (<span class="kw">ORDER BY</span> response_time_ms) <span class="kw">AS</span> p99
+<span class="kw">FROM</span> api_calls
+<span class="kw">GROUP BY</span> endpoint
+<span class="kw">ORDER BY</span> p99 <span class="kw">DESC</span>;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>PERCENTILE_CONT(0.99)</strong> means "the value at the 99th percentile" — 99% of calls are faster than this. BigQuery uses <code>APPROX_QUANTILES</code> for better performance on large datasets. SRE and infrastructure-focused data roles ask this frequently.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ===== PATTERN 15: SESSIONIZATION ===== -->
+  <section class="pattern-section" id="p15">
+    <div class="pattern-header">
+      <span class="pattern-number">PATTERN 15</span>
+      <div>
+        <div class="pattern-title">🔂 Sessionization</div>
+        <div class="pattern-subtitle">Session detection · Event grouping · Time-gap windows</div>
+      </div>
+    </div>
+    <div class="pattern-desc">Sessionization groups user events into sessions based on inactivity gaps. A new session starts when the gap between events exceeds a threshold (e.g., 30 minutes). Classic in product analytics at Uber, Airbnb, Google.</div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Uber</span><span class="q-company">Airbnb</span><span class="q-company">Google</span></div>
+        <span class="q-title">Assign session IDs to user events (30-min inactivity timeout)</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">From a <code>user_events</code> table (<code>user_id</code>, <code>event_time</code>, <code>event_type</code>), assign a <strong>session_id</strong> to each event. A new session begins when there's a >30 minute gap since the last event for that user.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> with_gap <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    user_id,
+    event_time,
+    event_type,
+    <span class="cm">-- Flag: 1 if this event starts a new session</span>
+    <span class="kw">CASE</span>
+      <span class="kw">WHEN</span> <span class="fn">TIMESTAMPDIFF</span>(<span class="fn">MINUTE</span>,
+        <span class="fn">LAG</span>(event_time) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> event_time),
+        event_time
+      ) > <span class="num">30</span>
+      <span class="kw">OR</span> <span class="fn">LAG</span>(event_time) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> event_time) <span class="kw">IS NULL</span>
+      <span class="kw">THEN</span> <span class="num">1</span>
+      <span class="kw">ELSE</span> <span class="num">0</span>
+    <span class="kw">END</span> <span class="kw">AS</span> new_session_flag
+  <span class="kw">FROM</span> user_events
+)
+<span class="kw">SELECT</span>
+  user_id,
+  event_time,
+  event_type,
+  new_session_flag,
+  <span class="cm">-- Cumulative sum of flags = session ID per user</span>
+  <span class="fn">SUM</span>(new_session_flag) <span class="kw">OVER</span> (
+    <span class="kw">PARTITION BY</span> user_id
+    <span class="kw">ORDER BY</span> event_time
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
+  ) <span class="kw">AS</span> session_id
+<span class="kw">FROM</span> with_gap
+<span class="kw">ORDER BY</span> user_id, event_time;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Sessionization in 2 steps:</strong>
+          <br>1. Use LAG to compute the time gap to the previous event; flag 1 if gap > 30 min or first event
+          <br>2. Cumulative SUM of flags = session ID (increments at each session boundary)
+          <br><br>This is the gold-standard pattern used in production analytics pipelines at Uber, Lyft, and Airbnb.
+        </div>
+      </div>
+    </div>
+
+    <div class="question-card" onclick="toggle(this)">
+      <div class="question-header">
+        <span class="q-difficulty diff-hard">Hard</span>
+        <div class="q-company-tags"><span class="q-company">Uber</span><span class="q-company">Ola</span></div>
+        <span class="q-title">Session metrics: average session duration and events per session</span>
+        <span class="q-toggle">▼</span>
+      </div>
+      <div class="question-body">
+        <div class="q-problem">Using the sessionized data from above, compute <strong>session-level metrics</strong>: session duration, number of events, and first/last event type per session.</div>
+        <div class="code-wrapper">
+          <div class="code-label">✅ Solution</div>
+          <div class="code-block"><span class="kw">WITH</span> sessionized <span class="kw">AS</span> (
+  <span class="cm">-- (same CTE from previous question)</span>
+  ...
+)
+<span class="kw">SELECT</span>
+  user_id,
+  session_id,
+  <span class="fn">MIN</span>(event_time) <span class="kw">AS</span> session_start,
+  <span class="fn">MAX</span>(event_time) <span class="kw">AS</span> session_end,
+  <span class="fn">TIMESTAMPDIFF</span>(<span class="fn">MINUTE</span>,
+    <span class="fn">MIN</span>(event_time), <span class="fn">MAX</span>(event_time)
+  ) <span class="kw">AS</span> duration_minutes,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> event_count,
+  <span class="fn">MIN</span>(event_type) <span class="kw">AS</span> first_event,
+  <span class="fn">MAX</span>(event_type) <span class="kw">AS</span> last_event
+<span class="kw">FROM</span> sessionized
+<span class="kw">GROUP BY</span> user_id, session_id
+<span class="kw">ORDER BY</span> user_id, session_start;</div>
+        </div>
+        <div class="q-explanation">
+          <strong>Session aggregation:</strong> Once session IDs are assigned, simple GROUP BY user_id + session_id lets you compute any session-level metric. MIN/MAX on event_time gives start/end; COUNT gives events; TIMESTAMPDIFF gives duration.
+          <br><br>For "first event type" and "last event type" use FIRST_VALUE / LAST_VALUE window functions for more control.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- QUICK REFERENCE -->
+  <section style="margin-bottom: 48px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.5px; margin-bottom:16px; color: var(--text);">⚡ Quick Reference: Window Function Cheat Sheet</div>
+    <div style="overflow-x:auto;">
+      <table class="schema-table" style="width:100%; font-size:12.5px;">
+        <tr>
+          <th>Function</th>
+          <th>Description</th>
+          <th>Use Case</th>
+          <th>Gaps in Ties?</th>
+        </tr>
+        <tr><td class="col-pk">ROW_NUMBER()</td><td>Unique sequential integer</td><td>Dedup, exactly top-N</td><td>N/A</td></tr>
+        <tr><td class="col-pk">RANK()</td><td>Rank with gaps after ties</td><td>Leaderboards (allow ties)</td><td>Yes: 1,1,3</td></tr>
+        <tr><td class="col-pk">DENSE_RANK()</td><td>Rank without gaps</td><td>Nth highest value</td><td>No: 1,1,2</td></tr>
+        <tr><td class="col-pk">NTILE(n)</td><td>Divide into n buckets</td><td>Quartiles, deciles</td><td>N/A</td></tr>
+        <tr><td class="col-fk">LAG(col, n)</td><td>Previous nth row value</td><td>MoM comparison</td><td>N/A</td></tr>
+        <tr><td class="col-fk">LEAD(col, n)</td><td>Next nth row value</td><td>Future prediction</td><td>N/A</td></tr>
+        <tr><td class="col-fk">FIRST_VALUE(col)</td><td>First value in partition</td><td>Baseline comparison</td><td>N/A</td></tr>
+        <tr><td class="col-fk">LAST_VALUE(col)</td><td>Last value (needs full frame)</td><td>Latest state</td><td>N/A</td></tr>
+        <tr><td style="color:var(--accent3)">SUM() OVER()</td><td>Running / windowed sum</td><td>Cumulative totals</td><td>N/A</td></tr>
+        <tr><td style="color:var(--accent3)">AVG() OVER()</td><td>Moving average</td><td>Trend smoothing</td><td>N/A</td></tr>
+        <tr><td style="color:var(--accent5)">PERCENT_RANK()</td><td>Relative rank 0.0–1.0</td><td>Percentile rank</td><td>N/A</td></tr>
+        <tr><td style="color:var(--accent5)">CUME_DIST()</td><td>Cumulative distribution</td><td>% of rows ≤ current</td><td>N/A</td></tr>
+      </table>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<script>
+function toggle(card) {
+  card.classList.toggle('open');
+}
+
+// Smooth scroll for sidebar links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+</body>
+</html>
