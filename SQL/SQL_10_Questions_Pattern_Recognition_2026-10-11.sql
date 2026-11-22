@@ -3328,3 +3328,58 @@ DELAYED REVISION CHECK — BEFORE DAY 4
   solution or simple comprehension check.
 ===============================================================================
 */
+
+Prime Plus is a paid monthly membership. Every month a member stays subscribed, one payment row is recorded against the first day of that month. The finance team tracks Monthly Recurring Revenue (MRR) and wants to know not just how much MRR changed each month, but why it changed.
+
+Write a query to produce an MRR movement report. For each month that has at least one payment, display:
+
+- mrr_month : the month (first day of the month, as stored in the table)
+- total_mrr : total amount paid in that month
+- new_mrr : amount paid by customers whose first-ever payment is in that month
+- reactivation_mrr : amount paid by customers who paid in that month, did NOT pay in the previous calendar month, but had paid in some earlier month
+- expansion_mrr : for customers who paid in both that month and the previous calendar month, the total increase in amount (only where the amount went up)
+- contraction_mrr : for customers who paid in both that month and the previous calendar month, the total decrease in amount (only where the amount went down), shown as a positive number
+
+The previous calendar month is always the month immediately before (for example, 2023-12-01 for 2024-01-01), not the month of the customer's previous payment. Show 0 (not NULL) when there is no movement of a type. Sort the output by mrr_month in ascending order.
+
+ 
+
+Table: plus_payments (primary key : customer_id, payment_month)
++---------------+-----------+
+| COLUMN_NAME   | DATA_TYPE |
++---------------+-----------+
+| customer_id   | int       |
+| payment_month | date      |
+| amount        | int       |
++---------------+-----------+
+
+
+Namastekart's growth team wants to understand how much of its monthly revenue comes from brand-new customers versus customers who are coming back. A healthy business should see repeat revenue grow over time.
+
+ 
+
+A customer is considered NEW in the month of their first-ever successful order, and every successful order they place in that same month counts as new-customer revenue. Successful orders placed in any later month count as repeat-customer revenue. Cancelled orders must be ignored completely: they generate no revenue and do not count as a customer's first order.
+
+ 
+
+For each month that has at least one successful order, display:
+- order_month (format YYYY-MM)
+- new_customer_revenue
+- repeat_customer_revenue
+- repeat_revenue_pct : repeat revenue as a percentage of that month's total revenue, rounded to 2 decimal places
+
+Sort the output by order_month in ascending order.
+
+ 
+
+Table: orders (primary key : order_id)
++-------------+-------------+
+| COLUMN_NAME | DATA_TYPE   |
++-------------+-------------+
+| order_id    | int         |
+| customer_id | int         |
+| order_date  | date        |
+| amount      | int         |
+| status      | varchar(10) |
++-------------+-------------+
+status is either 'Delivered' (successful) or 'Cancelled'.
