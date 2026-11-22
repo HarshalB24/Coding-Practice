@@ -3383,3 +3383,143 @@ Table: orders (primary key : order_id)
 | status      | varchar(10) |
 +-------------+-------------+
 status is either 'Delivered' (successful) or 'Cancelled'.
+Soln - 1
+
+WITH cte AS (
+    SELECT
+        customer_id,
+        order_id,
+        amount,
+        DATE_FORMAT(order_date, '%Y-%m') AS order_month,
+
+        MIN(DATE_FORMAT(order_date, '%Y-%m'))
+            OVER (PARTITION BY customer_id) AS first_month
+
+    FROM orders
+    WHERE status = 'Delivered'
+)
+
+SELECT
+    order_month,
+
+    SUM(
+        CASE
+            WHEN order_month = first_month
+            THEN amount ELSE 0
+        END
+    ) AS new_cust_rev,
+
+    SUM(
+        CASE
+            WHEN order_month > first_month
+            THEN amount ELSE 0
+        END
+    ) AS repeat_cust_rev,
+
+    ROUND(
+        100.0 * SUM(
+            CASE
+                WHEN order_month > first_month
+                THEN amount ELSE 0
+            END
+        ) / NULLIF(SUM(amount), 0),
+        2
+    ) AS repeat_revenue_pct
+
+FROM cte
+GROUP BY order_month
+ORDER BY order_month;
+
+Soln - 2
+WITH cte AS (
+    SELECT *,
+           DATE_FORMAT(order_date, '%Y-%m') AS order_month
+    FROM orders
+    WHERE status = 'Delivered'
+),
+first_month AS (
+    SELECT
+        customer_id,
+        MIN(order_month) AS first_month
+    FROM cte
+    GROUP BY customer_id
+)
+SELECT
+    c.order_month,
+
+    SUM(
+        CASE WHEN c.order_month = f.first_month
+             THEN c.amount ELSE 0 END
+    ) AS new_cust_rev,
+
+    SUM(
+        CASE WHEN c.order_month <> f.first_month
+             THEN c.amount ELSE 0 END
+    ) AS repeat_cust_rev,
+
+    ROUND(
+        100.0 * SUM(
+            CASE WHEN c.order_month <> f.first_month
+                 THEN c.amount ELSE 0 END
+        ) / NULLIF(SUM(c.amount), 0),
+        2
+    ) AS repeat_revenue_pct
+
+FROM cte c
+JOIN first_month f
+    ON c.customer_id = f.customer_id
+GROUP BY c.order_month
+ORDER BY c.order_month;
+
+
+
+
+
+
+
+
+
+
+
+
+Namastekart's marketing team runs discount campaigns, each with one or more coupon codes. Discounts cost money, so the team wants to know whether a campaign actually brings in customers who come back and pay full price, or only attracts one-time bargain hunters.
+
+ 
+
+For each campaign, calculate:
+
+- coupon_customers : number of distinct customers who placed at least one order using any coupon of that campaign
+
+- discount_given : total discount given on that campaign's orders, where the discount on an order is amount * discount_pct / 100. Round to 2 decimal places.
+
+- converted_customers : number of those coupon customers who placed at least one full-price order (an order without any coupon) within 30 days after their first order with that campaign. That means the full-price order date must be 1 to 30 days after the date of the customer's first order using that campaign's coupons.
+
+- conversion_rate : converted_customers as a percentage of coupon_customers, rounded to 2 decimal places
+
+Only include campaigns that have at least one order. Sort the output by conversion_rate in descending order, then by campaign in ascending order.
+
+ 
+
+Table: coupons (primary key : coupon_code)
++--------------+-------------+
+| COLUMN_NAME  | DATA_TYPE   |
++--------------+-------------+
+| coupon_code  | varchar(10) |
+| campaign     | varchar(15) |
+| discount_pct | int         |
++--------------+-------------+
+Table: orders (primary key : order_id)
++-------------+-------------+
+| COLUMN_NAME | DATA_TYPE   |
++-------------+-------------+
+| order_id    | int         |
+| customer_id | int         |
+| order_date  | date        |
+| amount      | int         |
+| coupon_code | varchar(10) |
++-------------+-------------+
+amount is the order value before discount. coupon_code is NULL for full-price orders.
+ 
+
+Hints
+Expected Output
