@@ -1,3 +1,32 @@
+-- ===========================================================================
+-- SQL QUESTION ARCHIVE | MASTER SOURCE-PRESERVING EDITION
+-- Built 2026-11-22 | SQL-only preparation | MySQL 8 unless noted
+-- ===========================================================================
+-- PURPOSE: Preserve FULL original questions, sample data, learner attempts,
+-- corrections, explanations and SQL from the source practice banks.
+-- Source content is copied verbatim below, not silently rewritten or deduped.
+-- Overlapping exercises may appear more than once; provenance is retained.
+-- Individual exercises may use conflicting schemas/table names: RUN ONE AT A TIME.
+-- The archive is NOT a single executable SQL script and is not a mastery record.
+-- To revise: hide solutions, attempt from scratch, then compare.
+-- Active tracking is in SQL_Interview_Progress_Tracker.xlsx.
+-- Concise recognition rules are in SQL_Revision_Pattern_Bank.sql.
+-- SOURCES:
+-- CORE-2026-10: SQL_Pattern_Recognition_Bank_With_Questions.sql | Historical core bank; self-reports 19 documented exercises; overlap with stage banks possible.
+-- STAGE1-D1: SQL_Stage1_Day1_Revision_Bank.sql | Day 1 four core exercises; original attempts and solutions.
+-- STAGE1-D1R: SQL_Stage1_Day1_Reinforcement_Addendum.sql | Day 1 five reinforcement exercises.
+-- STAGE1-D2: SQL_Stage1_Day2_Complete_Pattern_Bank.sql | Day 2 five main exercises and their variants.
+-- STAGE1-D3: SQL_Stage1_Day3_Complete_Pattern_Bank.sql | Day 3 four main exercises and two reinforcement exercises; mastery check pending.
+-- 2026-11-22: Namastekart Q + attempts; Prime Plus MRR Q (not yet attempted).
+-- ===========================================================================
+
+
+
+-- ==========================================================================
+-- SOURCE SECTION CORE-2026-10 | SQL_Pattern_Recognition_Bank_With_Questions.sql
+-- Historical core bank; self-reports 19 documented exercises; overlap with stage banks possible.
+-- ==========================================================================
+
 -- ============================================================================
 -- SQL PATTERN RECOGNITION & MISTAKE BANK — FULL-QUESTION EDITION
 -- UPDATED: 2026-10-18 | MySQL 8+
@@ -1572,7 +1601,12 @@ DO NOT mark P1 Concept 2 mastered yet; current status: improving.
 ===============================================================================
 */
 
-18/11/2026:
+
+-- ==========================================================================
+-- SOURCE SECTION STAGE1-D1 | SQL_Stage1_Day1_Revision_Bank.sql
+-- Day 1 four core exercises; original attempts and solutions.
+-- ==========================================================================
+
 /*
 ===============================================================================
 STAGE 1 | P1 — GRAIN, AGGREGATION, CTEs & WINDOW COMPARISONS
@@ -1957,8 +1991,11 @@ NEXT: Day 1 repair checkpoints: grain identification -> debug CTE/grain errors
 */
 
 
+-- ==========================================================================
+-- SOURCE SECTION STAGE1-D1R | SQL_Stage1_Day1_Reinforcement_Addendum.sql
+-- Day 1 five reinforcement exercises.
+-- ==========================================================================
 
-STAGE 1 MAESTERY : 
 /*
 ===============================================================================
 STAGE 1 | P1 CONCEPT 1 — REINFORCEMENT & MASTERY CHECK
@@ -2279,7 +2316,11 @@ contains the observations each AVG must weight equally?
 */
 
 
-19/10/2026 : 
+-- ==========================================================================
+-- SOURCE SECTION STAGE1-D2 | SQL_Stage1_Day2_Complete_Pattern_Bank.sql
+-- Day 2 five main exercises and their variants.
+-- ==========================================================================
+
 /*
 ===============================================================================
 STAGE 1 | DAY 2 — COMPLETE SQL PATTERN & MISTAKE BANK
@@ -2854,7 +2895,11 @@ all possible hard SQL patterns are mastered.
 */
 
 
-#10/24/2026:
+-- ==========================================================================
+-- SOURCE SECTION STAGE1-D3 | SQL_Stage1_Day3_Complete_Pattern_Bank.sql
+-- Day 3 four main exercises and two reinforcement exercises; mastery check pending.
+-- ==========================================================================
+
 /*
 ===============================================================================
 STAGE 1 | DAY 3 — SQL PATTERN RECOGNITION & MISTAKE BANK
@@ -3329,197 +3374,205 @@ DELAYED REVISION CHECK — BEFORE DAY 4
 ===============================================================================
 */
 
-Prime Plus is a paid monthly membership. Every month a member stays subscribed, one payment row is recorded against the first day of that month. The finance team tracks Monthly Recurring Revenue (MRR) and wants to know not just how much MRR changed each month, but why it changed.
 
-Write a query to produce an MRR movement report. For each month that has at least one payment, display:
+-- ===========================================================================
+-- ACTIVE QUESTION QA-20261122-01 | NAMASTEKART NEW VS REPEAT REVENUE
+-- DATE: 2026-11-22 | STATUS: CORRECTED; NOT INDEPENDENTLY MASTERED
+-- PATTERNS: first successful month, conditional aggregation, grain transitions
+-- ===========================================================================
+/*
+FULL QUESTION (user supplied):
+Namastekart's growth team wants to understand how much of its monthly revenue
+comes from brand-new customers versus customers who are coming back.
+A customer is NEW in the month of their first-ever successful order. Every
+successful order placed in that month is new-customer revenue. Successful
+orders in any later month are repeat-customer revenue. Cancelled orders must
+be ignored completely, including for first-ever-order determination.
+For every month with at least one successful order return order_month (YYYY-MM),
+new_customer_revenue, repeat_customer_revenue, repeat_revenue_pct (rounded to 2
+decimals); sort ascending.
+Schema: orders(order_id PK, customer_id, order_date DATE, amount INT,
+status VARCHAR(10) = Delivered or Cancelled).
 
-- mrr_month : the month (first day of the month, as stored in the table)
-- total_mrr : total amount paid in that month
-- new_mrr : amount paid by customers whose first-ever payment is in that month
-- reactivation_mrr : amount paid by customers who paid in that month, did NOT pay in the previous calendar month, but had paid in some earlier month
-- expansion_mrr : for customers who paid in both that month and the previous calendar month, the total increase in amount (only where the amount went up)
-- contraction_mrr : for customers who paid in both that month and the previous calendar month, the total decrease in amount (only where the amount went down), shown as a positive number
+COACHING SAMPLE (illustrative; not from original question):
+(1,101,2024-01-05,100,Delivered)
+(2,101,2024-01-20,200,Delivered)
+(3,102,2024-01-10,150,Cancelled)
+(4,103,2024-01-15,300,Delivered)
+(5,101,2024-02-05,250,Delivered)
+(6,102,2024-02-10,400,Delivered)
+(7,103,2024-02-12,100,Delivered)
+(8,102,2024-02-20,200,Delivered)
+(9,101,2024-03-03,150,Delivered)
+(10,104,2024-03-08,500,Delivered)
+(11,102,2024-03-12,300,Delivered)
+EXPECTED:
+2024-01 | 600 | 0   | 0.00
+2024-02 | 600 | 350 | 36.84
+2024-03 | 500 | 450 | 47.37
 
-The previous calendar month is always the month immediately before (for example, 2023-12-01 for 2024-01-01), not the month of the customer's previous payment. Show 0 (not NULL) when there is no movement of a type. Sort the output by mrr_month in ascending order.
+USER REASONING:
+Raw grain: one row per order. Final grain: one row per month.
+Find each customer's first successful month; classify all successful orders in
+that month as new, later successful orders as repeat.
+Initial percentage formula was inverted; corrected in subsequent attempt.
 
- 
+USER ATTEMPT 1 (window):
+with cte as (select * , min(Date_format(order_date,'%Y'-'%mm') over (partition by customer_id) as first_month
+from orders
+where status='Delivered')
+select sum(amount) as total_revenue,
+order_date as order_month , sum(case when order_date=first_month then amount else 0 )end as new_cust_rev,
+sum(Case when order_date ! = first_month then amount else 0 ) end as repeat_cust_rev,
+round(sum(Case when order_date ! = first_month then amount else 0 )/ sum(amount)) as repeat_revenue_pct
+from cte
+group by order_month
+order by order_month
 
-Table: plus_payments (primary key : customer_id, payment_month)
-+---------------+-----------+
-| COLUMN_NAME   | DATA_TYPE |
-+---------------+-----------+
-| customer_id   | int       |
-| payment_month | date      |
-| amount        | int       |
-+---------------+-----------+
-
-
-Namastekart's growth team wants to understand how much of its monthly revenue comes from brand-new customers versus customers who are coming back. A healthy business should see repeat revenue grow over time.
-
- 
-
-A customer is considered NEW in the month of their first-ever successful order, and every successful order they place in that same month counts as new-customer revenue. Successful orders placed in any later month count as repeat-customer revenue. Cancelled orders must be ignored completely: they generate no revenue and do not count as a customer's first order.
-
- 
-
-For each month that has at least one successful order, display:
-- order_month (format YYYY-MM)
-- new_customer_revenue
-- repeat_customer_revenue
-- repeat_revenue_pct : repeat revenue as a percentage of that month's total revenue, rounded to 2 decimal places
-
-Sort the output by order_month in ascending order.
-
- 
-
-Table: orders (primary key : order_id)
-+-------------+-------------+
-| COLUMN_NAME | DATA_TYPE   |
-+-------------+-------------+
-| order_id    | int         |
-| customer_id | int         |
-| order_date  | date        |
-| amount      | int         |
-| status      | varchar(10) |
-+-------------+-------------+
-status is either 'Delivered' (successful) or 'Cancelled'.
-Soln - 1
-
-WITH cte AS (
-    SELECT
-        customer_id,
-        order_id,
-        amount,
-        DATE_FORMAT(order_date, '%Y-%m') AS order_month,
-
-        MIN(DATE_FORMAT(order_date, '%Y-%m'))
-            OVER (PARTITION BY customer_id) AS first_month
-
-    FROM orders
-    WHERE status = 'Delivered'
+USER ATTEMPT 2 (CTE + JOIN):
+with cte as (
+    select * from orders where status='delivered'
+), first_month as (
+    select customer_id , min(order_Date,'%Y'-'%m') as first_month
+    from cte group by customer_id
 )
+select order_date as order_month,
+       sum(case when order_date=first_month then amount else 0 )end as new_cust_rev,
+       sum(Case when order_date ! = first_month then amount else 0 ) end as repeat_cust_rev,
+       round(sum(Case when order_date ! = first_month then amount else 0 )/ sum(amount)) as repeat_revenue_pct
+from first_month m join cte c on m.order_date=c.order_date
+group by customer_id
 
-SELECT
-    order_month,
+USER REVISION 2:
+with cte as (select * from orders where status='Delivered'),
+first_month as (
+select customer_id , date_format(order_date,'%Y-%m') as order_month ,
+min(date_format(order_date,'%Y-%m') as first_month from cte
+ group by customer_id)
+select order_month,sum(case when order_month=first_month then amount else 0 end) as new_cust_rev,
+sum(case when order_month!=first_month then amount else 0 )end as new_cust_rev,
+round(sum(Case when order_month ! = first_month then amount else 0 )* 100/ sum(amount),2) as repeat_revenue_pct
+from first_month m join cte c on m.customer_id=c.customer_id
+group by order_month order by order_month
 
-    SUM(
-        CASE
-            WHEN order_month = first_month
-            THEN amount ELSE 0
-        END
-    ) AS new_cust_rev,
+USER REVISION 3:
+with cte as (select * from orders where status='Delivered'),
+first_month as (
+select customer_id , date_format(c.order_date,'%Y-%m') as order_month ,
+min(date_format(order_date,'%Y-%m')) as first_month from cte
+ group by customer_id,date_format(order_date,'%Y-%m'))
+select c.order_month,sum(case when order_month=first_month then amount else 0 end) as new_cust_rev,
+sum(case when order_month!=first_month then amount else 0 end) as repeat_cust_rev,
+round(sum(Case when order_month ! = first_month then amount else 0 )* 100/ sum(amount),2) as repeat_revenue_pct
+from first_month m join cte c on m.customer_id=c.customer_id
+group by c.order_month order by c.order_month
 
-    SUM(
-        CASE
-            WHEN order_month > first_month
-            THEN amount ELSE 0
-        END
-    ) AS repeat_cust_rev,
+USER REVISION 4 (logical structure correct; minor alias and operator errors):
+with cte as (
+select * ,date_format(order_date,'%Y-%m') as order_month from orders
+where status='Delivered'),
+first_month as (
+select customer_id , min(date_format(order_date,'%Y-%m')) as first_month from cte
+ group by customer_id)
+select c.order_month,
+sum(case when c.order_month=f.first_month then amount else 0 end) as new_cust_rev,
+sum(case when c.order_month!=f.first_month then c.amount else 0 end) as repeat_cust_rev,
+round(100.0 * sum(Case when c.order_month ! = f.first_month then c.amount else 0 end)
+ / nullif(sum(c.amount),0),2) as repeat_revenue_pct
+from cte c join first_month m on c.customer_id=f.customer_id
+ group by c.order_month order by c.order_month
 
-    ROUND(
-        100.0 * SUM(
-            CASE
-                WHEN order_month > first_month
-                THEN amount ELSE 0
-            END
-        ) / NULLIF(SUM(amount), 0),
-        2
-    ) AS repeat_revenue_pct
-
-FROM cte
-GROUP BY order_month
-ORDER BY order_month;
-
-Soln - 2
-WITH cte AS (
-    SELECT *,
+ROOT CAUSE: Grouping by customer_id AND order_month in first_month CTE
+produced one row per customer-month, not one row per customer; joining on
+customer_id then multiplied rows (fanout). Additional date-vs-month,
+CASE/alias, formatting and percentage errors.
+MASTERY GATE: Solve an unseen variant independently and on time.
+*/
+-- CORRECTED REFERENCE QUERY (MySQL 8+):
+WITH delivered_orders AS (
+    SELECT order_id, customer_id, amount,
            DATE_FORMAT(order_date, '%Y-%m') AS order_month
     FROM orders
     WHERE status = 'Delivered'
 ),
 first_month AS (
-    SELECT
-        customer_id,
-        MIN(order_month) AS first_month
-    FROM cte
+    SELECT customer_id, MIN(order_month) AS first_month
+    FROM delivered_orders
     GROUP BY customer_id
 )
-SELECT
-    c.order_month,
+SELECT d.order_month,
+       SUM(CASE WHEN d.order_month = f.first_month THEN d.amount ELSE 0 END) AS new_customer_revenue,
+       SUM(CASE WHEN d.order_month > f.first_month THEN d.amount ELSE 0 END) AS repeat_customer_revenue,
+       ROUND(100.0 * SUM(CASE WHEN d.order_month > f.first_month THEN d.amount ELSE 0 END)
+             / NULLIF(SUM(d.amount), 0), 2) AS repeat_revenue_pct
+FROM delivered_orders d
+JOIN first_month f ON f.customer_id = d.customer_id
+GROUP BY d.order_month
+ORDER BY d.order_month;
 
-    SUM(
-        CASE WHEN c.order_month = f.first_month
-             THEN c.amount ELSE 0 END
-    ) AS new_cust_rev,
+-- ===========================================================================
+-- ACTIVE QUESTION QA-20261122-02 | PRIME PLUS MRR MOVEMENT
+-- DATE: 2026-11-22 | STATUS: NOT ATTEMPTED; NO SOLUTION ADDED
+-- ===========================================================================
+/*
+FULL QUESTION (user supplied):
+Prime Plus is a paid monthly membership. Every month a member stays subscribed,
+one payment row is recorded against the first day of that month. The finance
+team tracks Monthly Recurring Revenue (MRR) and wants to know not just how much
+MRR changed each month, but why it changed.
+For each month with at least one payment return:
+- mrr_month: month (first day of month as stored)
+- total_mrr: sum paid in month
+- new_mrr: amounts paid by customers whose first-ever payment is that month
+- reactivation_mrr: amounts paid by customers who paid this month, did NOT pay
+  in the immediately previous CALENDAR month, but did pay in an earlier month
+- expansion_mrr: positive increases for customers paying in BOTH this month
+  and immediately previous calendar month
+- contraction_mrr: positive decreases for customers paying in BOTH months
+- zero, not NULL, where no movement of a type
+- ascending by mrr_month.
+Schema: plus_payments(customer_id INT, payment_month DATE, amount INT)
+Primary key: (customer_id, payment_month).
+Important: previous calendar month != previous available customer payment.
+No independent user attempt yet. Do not treat as solved.
+*/
 
-    SUM(
-        CASE WHEN c.order_month <> f.first_month
-             THEN c.amount ELSE 0 END
-    ) AS repeat_cust_rev,
+-- ===========================================================================
+-- MENTOR QUESTION QA-20261122-03 | STRING PERMUTATIONS / COMBINATIONS
+-- STATUS: EXPLAINED PREVIOUSLY; NOT INDEPENDENTLY ATTEMPTED
+-- ===========================================================================
+/*
+Available reconstructed brief (exact mentor wording/sample rows unavailable):
+Given names/strings, generate all permutations and combinations of characters
+for each name. Distinguish permutations (order matters) from combinations
+(order does not matter); recursive CTE/backtracking was discussed.
+Learner asked why there are multiple UNIONs. Key point: recursive CTE has
+anchor member + recursive member joined by UNION ALL; helper CTEs are optional.
+No independently submitted learner query is available. Do not mark mastered.
+*/
 
-    ROUND(
-        100.0 * SUM(
-            CASE WHEN c.order_month <> f.first_month
-                 THEN c.amount ELSE 0 END
-        ) / NULLIF(SUM(c.amount), 0),
-        2
-    ) AS repeat_revenue_pct
-
-FROM cte c
-JOIN first_month f
-    ON c.customer_id = f.customer_id
-GROUP BY c.order_month
-ORDER BY c.order_month;
-
-
-
-
-
-
-
-
-
-
-
-
-Namastekart's marketing team runs discount campaigns, each with one or more coupon codes. Discounts cost money, so the team wants to know whether a campaign actually brings in customers who come back and pay full price, or only attracts one-time bargain hunters.
-
- 
-
-For each campaign, calculate:
-
-- coupon_customers : number of distinct customers who placed at least one order using any coupon of that campaign
-
-- discount_given : total discount given on that campaign's orders, where the discount on an order is amount * discount_pct / 100. Round to 2 decimal places.
-
-- converted_customers : number of those coupon customers who placed at least one full-price order (an order without any coupon) within 30 days after their first order with that campaign. That means the full-price order date must be 1 to 30 days after the date of the customer's first order using that campaign's coupons.
-
-- conversion_rate : converted_customers as a percentage of coupon_customers, rounded to 2 decimal places
-
-Only include campaigns that have at least one order. Sort the output by conversion_rate in descending order, then by campaign in ascending order.
-
- 
-
-Table: coupons (primary key : coupon_code)
-+--------------+-------------+
-| COLUMN_NAME  | DATA_TYPE   |
-+--------------+-------------+
-| coupon_code  | varchar(10) |
-| campaign     | varchar(15) |
-| discount_pct | int         |
-+--------------+-------------+
-Table: orders (primary key : order_id)
-+-------------+-------------+
-| COLUMN_NAME | DATA_TYPE   |
-+-------------+-------------+
-| order_id    | int         |
-| customer_id | int         |
-| order_date  | date        |
-| amount      | int         |
-| coupon_code | varchar(10) |
-+-------------+-------------+
-amount is the order value before discount. coupon_code is NULL for full-price orders.
- 
-
-Hints
-Expected Output
+-- ===========================================================================
+-- MENTOR QUESTION QA-20261122-04 | PREVIOUS NON-NULL VALUE
+-- STATUS: DISCUSSED; NOT INDEPENDENTLY ATTEMPTED
+-- ===========================================================================
+/*
+Available reconstructed brief (exact original schema unavailable):
+Ordered values: 1, 2, NULL, 3, NULL.
+Return previous non-NULL value STRICTLY BEFORE current row:
+NULL, 1, 2, 2, 3.
+This is distinct from forward-fill including current row:
+1, 2, 2, 3, 3.
+Learner proposed correlated lookup + ROW_NUMBER; discussion confirmed this
+as a valid straightforward approach. Deterministic ordering is required.
+*/
+-- REFERENCE SHAPE (example events table needs event_time,event_id,id):
+/*
+WITH numbered AS (
+ SELECT ROW_NUMBER() OVER(ORDER BY event_time,event_id) AS rn,id FROM events
+)
+SELECT t.rn,t.id,
+       (SELECT t2.id FROM numbered t2
+        WHERE t2.rn < t.rn AND t2.id IS NOT NULL
+        ORDER BY t2.rn DESC LIMIT 1) AS previous_non_null
+FROM numbered t ORDER BY t.rn;
+*/
